@@ -1,12 +1,9 @@
-import { toRadian } from "@/engine/utils";
 import main_vert from "@/shaders/main.vert.wgsl";
 import main_frag from "@/shaders/main.frag.wgsl";
 import initialize_compute from "@/shaders/initialize.compute.wgsl";
 import divergence_compute from "@/shaders/divergence.compute.wgsl";
 import jacobi_compute from "@/shaders/jacobi.compute.wgsl";
 import texture_compute from "@/shaders/texture.compute.wgsl";
-import { mat4, vec2, vec3 } from "gl-matrix";
-import Camera from "./camera";
 import RendererBackend from "./renderer_backend";
 import Surface from "./geometry/surface";
 
@@ -20,7 +17,7 @@ export default class Renderer extends RendererBackend {
   private _vertexBuffer!: GPUBuffer;
   private _indexBuffer!: GPUBuffer;
   private _indicesLength!: number;
-  private _matrixUniformBuffer!: GPUBuffer;
+  private _windowSizeUniformBuffer!: GPUBuffer;
   private _heightMapStorageBuffer!: GPUBuffer;
   private _heightMapTempStorageBuffer!: GPUBuffer;
   private _divergenceStorageBuffer!: GPUBuffer;
@@ -35,18 +32,10 @@ export default class Renderer extends RendererBackend {
   private _computeJacobiBindGroupEven!: GPUBindGroup;
   private _computeTextureBindGroup!: GPUBindGroup;
 
-  private _model!: mat4;
-  private _camera!: Camera;
-  private _projection!: mat4;
-
-  private readonly TEX_SIZE = 256;
   private readonly WORKGROUP_SIZE = 16;
-
-  private _play: boolean;
 
   constructor() {
     super();
-    this._play = false;
   }
 
   // public methods
@@ -64,26 +53,18 @@ export default class Renderer extends RendererBackend {
     await this.createBindGroups();
 
     await this.computeInitialize();
-
-    this.setMatrix();
   }
 
   public async run() {
-    await this.writeBuffers();
-
     await this.createEncoder();
 
-    if (this._play) await this.update();
+    await this.update();
 
     await this.draw();
 
     await this.submitCommandBuffer();
 
     requestAnimationFrame(() => this.run());
-  }
-
-  public play() {
-    this._play = true;
   }
 
   private async createPipelines() {
@@ -128,7 +109,7 @@ export default class Renderer extends RendererBackend {
   }
 
   private async createVertexBuffers() {
-    const surface = Surface(this.TEX_SIZE);
+    const surface = Surface(this.WIDTH, this.HEIGHT);
     const cubeVertexValues = new Float32Array(
       this.getVerticesData(surface.vertices)
     );
@@ -151,18 +132,18 @@ export default class Renderer extends RendererBackend {
   private async createOtherBuffers() {
     this._heightMapStorageBuffer = this._device.createBuffer({
       label: "height map storage buffer",
-      size: this.TEX_SIZE * this.TEX_SIZE * Float32Array.BYTES_PER_ELEMENT,
+      size: this.WIDTH * this.HEIGHT * Float32Array.BYTES_PER_ELEMENT,
       usage:
         GPUBufferUsage.STORAGE |
         GPUBufferUsage.COPY_SRC |
         GPUBufferUsage.COPY_DST,
     });
-    const heightMap = new Float32Array(this.TEX_SIZE * this.TEX_SIZE);
+    const heightMap = new Float32Array(this.WIDTH * this.HEIGHT);
     this._device.queue.writeBuffer(this._heightMapStorageBuffer, 0, heightMap);
 
     this._heightMapTempStorageBuffer = this._device.createBuffer({
       label: "height map temp storage buffer",
-      size: this.TEX_SIZE * this.TEX_SIZE * Float32Array.BYTES_PER_ELEMENT,
+      size: this.WIDTH * this.HEIGHT * Float32Array.BYTES_PER_ELEMENT,
       usage:
         GPUBufferUsage.STORAGE |
         GPUBufferUsage.COPY_SRC |
@@ -176,7 +157,7 @@ export default class Renderer extends RendererBackend {
 
     this._divergenceStorageBuffer = this._device.createBuffer({
       label: "divergence storage buffer",
-      size: this.TEX_SIZE * this.TEX_SIZE * Float32Array.BYTES_PER_ELEMENT,
+      size: this.WIDTH * this.HEIGHT * Float32Array.BYTES_PER_ELEMENT,
       usage:
         GPUBufferUsage.STORAGE |
         GPUBufferUsage.COPY_SRC |
@@ -184,17 +165,22 @@ export default class Renderer extends RendererBackend {
     });
     this._device.queue.writeBuffer(this._divergenceStorageBuffer, 0, heightMap);
 
-    this._matrixUniformBuffer = this._device.createBuffer({
-      label: "matrix uniforms",
-      size: (16 + 16 + 16) * Float32Array.BYTES_PER_ELEMENT,
+    this._windowSizeUniformBuffer = this._device.createBuffer({
+      label: "window size uniforms",
+      size: 2 * Uint32Array.BYTES_PER_ELEMENT,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     });
+    this._device.queue.writeBuffer(
+      this._windowSizeUniformBuffer,
+      0,
+      new Uint32Array([this.WIDTH, this.HEIGHT])
+    );
   }
 
   private async createTextures() {
     this._heightMapTexture = this._device.createTexture({
       label: "height map texture",
-      size: [this.TEX_SIZE, this.TEX_SIZE],
+      size: [this.WIDTH, this.HEIGHT],
       format: "rgba8unorm",
       usage:
         GPUTextureUsage.COPY_DST |
@@ -214,9 +200,8 @@ export default class Renderer extends RendererBackend {
       label: "bind group for object",
       layout: this._mainPipeline.getBindGroupLayout(0),
       entries: [
-        { binding: 0, resource: { buffer: this._matrixUniformBuffer } },
-        { binding: 1, resource: this._heightMapTexture.createView() },
-        { binding: 2, resource: this._sampler },
+        { binding: 0, resource: this._heightMapTexture.createView() },
+        { binding: 1, resource: this._sampler },
       ],
     });
 
@@ -225,6 +210,7 @@ export default class Renderer extends RendererBackend {
       layout: this._computeInitializePipeline.getBindGroupLayout(0),
       entries: [
         { binding: 0, resource: { buffer: this._heightMapStorageBuffer } },
+        { binding: 1, resource: { buffer: this._windowSizeUniformBuffer } },
       ],
     });
 
@@ -235,6 +221,7 @@ export default class Renderer extends RendererBackend {
         { binding: 0, resource: { buffer: this._heightMapStorageBuffer } },
         { binding: 1, resource: { buffer: this._heightMapTempStorageBuffer } },
         { binding: 2, resource: { buffer: this._divergenceStorageBuffer } },
+        { binding: 3, resource: { buffer: this._windowSizeUniformBuffer } },
       ],
     });
 
@@ -245,6 +232,7 @@ export default class Renderer extends RendererBackend {
         { binding: 0, resource: { buffer: this._heightMapTempStorageBuffer } },
         { binding: 1, resource: { buffer: this._heightMapStorageBuffer } },
         { binding: 2, resource: { buffer: this._divergenceStorageBuffer } },
+        { binding: 3, resource: { buffer: this._windowSizeUniformBuffer } },
       ],
     });
 
@@ -255,6 +243,7 @@ export default class Renderer extends RendererBackend {
         { binding: 0, resource: { buffer: this._heightMapStorageBuffer } },
         { binding: 1, resource: { buffer: this._heightMapTempStorageBuffer } },
         { binding: 2, resource: { buffer: this._divergenceStorageBuffer } },
+        { binding: 3, resource: { buffer: this._windowSizeUniformBuffer } },
       ],
     });
 
@@ -264,42 +253,9 @@ export default class Renderer extends RendererBackend {
       entries: [
         { binding: 0, resource: { buffer: this._heightMapStorageBuffer } },
         { binding: 1, resource: this._heightMapTexture.createView() },
+        { binding: 2, resource: { buffer: this._windowSizeUniformBuffer } },
       ],
     });
-  }
-
-  private setMatrix() {
-    this._model = mat4.create();
-    const scale = this.WIDTH > 500 ? 0.4 : 0.3;
-    mat4.scale(this._model, this._model, vec3.fromValues(scale, scale, scale));
-    mat4.translate(this._model, this._model, vec3.fromValues(-0.5, 0.2, 0));
-    mat4.rotateX(this._model, this._model, toRadian(30));
-    mat4.rotateY(this._model, this._model, toRadian(-15));
-
-    this._camera = new Camera({
-      position: vec3.fromValues(0, 0, 2.5),
-      center: vec3.fromValues(0, 0, 0),
-      up: vec3.fromValues(0, 1, 0),
-      initialRotate: vec2.fromValues(0, 0),
-    });
-
-    this._projection = mat4.create();
-    mat4.perspective(
-      this._projection,
-      toRadian(45),
-      this.WIDTH / this.HEIGHT,
-      0.1,
-      100
-    );
-  }
-
-  private async writeBuffers() {
-    const view = this._camera.getViewMatrix();
-    this._device.queue.writeBuffer(
-      this._matrixUniformBuffer,
-      0,
-      new Float32Array([...this._model, ...view, ...this._projection])
-    );
   }
 
   private async computeInitialize() {
@@ -312,16 +268,16 @@ export default class Renderer extends RendererBackend {
     computePassEncoder.setPipeline(this._computeInitializePipeline);
     computePassEncoder.setBindGroup(0, this._computeInitializeBindGroup);
     computePassEncoder.dispatchWorkgroups(
-      this.TEX_SIZE / this.WORKGROUP_SIZE,
-      this.TEX_SIZE / this.WORKGROUP_SIZE,
+      this.WIDTH / this.WORKGROUP_SIZE,
+      this.HEIGHT / this.WORKGROUP_SIZE,
       1
     );
 
     computePassEncoder.setPipeline(this._computeTexturePipeline);
     computePassEncoder.setBindGroup(0, this._computeTextureBindGroup);
     computePassEncoder.dispatchWorkgroups(
-      this.TEX_SIZE / this.WORKGROUP_SIZE,
-      this.TEX_SIZE / this.WORKGROUP_SIZE,
+      this.WIDTH / this.WORKGROUP_SIZE,
+      this.HEIGHT / this.WORKGROUP_SIZE,
       1
     );
 
@@ -353,8 +309,8 @@ export default class Renderer extends RendererBackend {
     computePassEncoder.setPipeline(this._computeDivergencePipeline);
     computePassEncoder.setBindGroup(0, this._computeDivergenceBindGroup);
     computePassEncoder.dispatchWorkgroups(
-      this.TEX_SIZE / this.WORKGROUP_SIZE,
-      this.TEX_SIZE / this.WORKGROUP_SIZE,
+      this.WIDTH / this.WORKGROUP_SIZE,
+      this.HEIGHT / this.WORKGROUP_SIZE,
       1
     );
 
@@ -366,8 +322,8 @@ export default class Renderer extends RendererBackend {
         computePassEncoder.setBindGroup(0, this._computeJacobiBindGroupEven);
       }
       computePassEncoder.dispatchWorkgroups(
-        this.TEX_SIZE / this.WORKGROUP_SIZE,
-        this.TEX_SIZE / this.WORKGROUP_SIZE,
+        this.WIDTH / this.WORKGROUP_SIZE,
+        this.HEIGHT / this.WORKGROUP_SIZE,
         1
       );
     }
@@ -375,8 +331,8 @@ export default class Renderer extends RendererBackend {
     computePassEncoder.setPipeline(this._computeTexturePipeline);
     computePassEncoder.setBindGroup(0, this._computeTextureBindGroup);
     computePassEncoder.dispatchWorkgroups(
-      this.TEX_SIZE / this.WORKGROUP_SIZE,
-      this.TEX_SIZE / this.WORKGROUP_SIZE,
+      this.WIDTH / this.WORKGROUP_SIZE,
+      this.HEIGHT / this.WORKGROUP_SIZE,
       1
     );
 

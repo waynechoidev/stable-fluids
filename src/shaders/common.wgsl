@@ -1,5 +1,3 @@
-const TEX_SIZE:u32 = 256;
-
 struct VSOutput {
   @builtin(position) position: vec4f,
   @location(1) height: f32,
@@ -10,12 +8,11 @@ struct Vertex {
   @location(1) texCoord: vec2f,
 };
 
-struct MatrixUniforms {
-  model: mat4x4f,
-  view: mat4x4f,
-  projection: mat4x4f,
+struct WindowSizeUniforms {
+  width:u32,
+  height:u32,
 };
 
-fn getIdx(coord:vec2u) -> u32 {
-    return coord.x + coord.y * TEX_SIZE;
+fn getIdx(coord:vec2u, width:u32) -> u32 {
+    return coord.x + coord.y * width;
 }

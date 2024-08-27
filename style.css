@@ -25,12 +25,3 @@ canvas {
 #err-msg {
   margin: 20px;
 }
-
-#click {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-20%, -50%);
-  font-size: 3rem;
-  cursor: pointer;
-}

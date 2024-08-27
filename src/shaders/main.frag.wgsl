@@ -6,4 +6,5 @@
   let height = input.height;
   
   return vec4f(0.8, 0.9 * (1.0 - height), 0.0, 1.0);
+  // return vec4f(1.0,0,0,1.0);
 }
