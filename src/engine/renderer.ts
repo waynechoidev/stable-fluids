@@ -7,7 +7,7 @@ import texture_compute from "@/shaders/texture.compute.wgsl";
 import RendererBackend from "./renderer_backend";
 import Surface from "./geometry/surface";
 import { vec2, vec4 } from "gl-matrix";
-import { getRandomColor } from "./utils";
+import { colors } from "./utils";
 
 export default class Renderer extends RendererBackend {
   private _mainPipeline!: GPURenderPipeline;
@@ -42,6 +42,7 @@ export default class Renderer extends RendererBackend {
   private _prevMousePos: vec2;
   private _mouseVel: vec2;
   private _density: vec4;
+  private _colorIdx: number;
 
   constructor() {
     super();
@@ -49,6 +50,7 @@ export default class Renderer extends RendererBackend {
     this._prevMousePos = vec2.fromValues(0, 0);
     this._mouseVel = vec2.fromValues(0, 0);
     this._density = vec4.fromValues(0, 0, 0, 0);
+    this._colorIdx = 0;
   }
 
   // public methods
@@ -312,7 +314,10 @@ export default class Renderer extends RendererBackend {
     this._canvas.addEventListener("mousedown", () => {
       this._isTracking = true;
       this._mouseVel = vec2.fromValues(0, 0);
-      this._density = getRandomColor();
+      if (this._colorIdx == colors.length) this._colorIdx = 0;
+      console.log(this._colorIdx);
+      const color = colors[this._colorIdx++];
+      this._density = vec4.fromValues(color[0], color[1], color[2], color[3]);
     });
 
     this._canvas.addEventListener("mousemove", (e) => {
