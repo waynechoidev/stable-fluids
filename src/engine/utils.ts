@@ -1,4 +1,4 @@
-import { vec2, vec3 } from "gl-matrix";
+import { vec2, vec3, vec4 } from "gl-matrix";
 
 export type Vertex = {
   position: vec3;
@@ -54,6 +54,22 @@ export async function createNextMipLevelRgba8Unorm(
 
 export const getRandomFloat = (min: number, max: number): number => {
   return Math.random() * (max - min) + min;
+};
+
+export const getRandomColor = () => {
+  const colors = [
+    [1.0, 0.0, 0.0, 1.0], // Red
+    [1.0, 0.65, 0.0, 1.0], // Orange
+    [1.0, 1.0, 0.0, 1.0], // Yellow
+    [0.0, 1.0, 0.0, 1.0], // Green
+    [0.0, 0.0, 1.0, 1.0], // Blue
+    [0.3, 0.0, 0.5, 1.0], // Indigo
+    [0.5, 0.0, 1.0, 1.0], // Violet/Purple
+  ];
+
+  const randomIndex = Math.floor(Math.random() * colors.length);
+  const color = colors[randomIndex];
+  return vec4.fromValues(color[0], color[1], color[2], color[3]);
 };
 
 const degree = Math.PI / 180;

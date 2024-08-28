@@ -1,20 +1,31 @@
 import { generateMips, loadImageBitmap, Vertex } from "@/engine/utils";
 
 export default abstract class RendererBackend {
+  protected _canvas!: HTMLCanvasElement;
   protected _device!: GPUDevice;
   protected _canvasContext!: GPUCanvasContext;
   protected _commandEncoder!: GPUCommandEncoder;
 
   protected readonly WIDTH: number;
   protected readonly HEIGHT: number;
+  protected readonly WORKGROUP_SIZE = 16;
 
+  protected _fps: HTMLElement;
   protected _previousFrameTime: number;
+  protected _delta: number;
+  protected _frameCount: number;
 
   constructor() {
-    this.WIDTH = window.innerWidth;
-    this.HEIGHT = window.innerHeight;
+    this.WIDTH =
+      Math.floor(window.innerWidth / this.WORKGROUP_SIZE) * this.WORKGROUP_SIZE;
+    this.HEIGHT =
+      Math.floor(window.innerHeight / this.WORKGROUP_SIZE) *
+      this.WORKGROUP_SIZE;
 
-    this._previousFrameTime = 0;
+    this._previousFrameTime = performance.now();
+    this._delta = 0;
+    this._frameCount = 0;
+    this._fps = document.getElementById("fps") as HTMLElement;
   }
 
   abstract initialize(): Promise<void>;
@@ -30,13 +41,13 @@ export default abstract class RendererBackend {
   }
 
   protected async getCanvasContext() {
-    const canvas = document.querySelector("canvas") as HTMLCanvasElement;
-    if (!canvas) console.error("Cannot find a canvas");
+    this._canvas = document.querySelector("canvas") as HTMLCanvasElement;
+    if (!this._canvas) console.error("Cannot find a canvas");
 
-    canvas.width = this.WIDTH;
-    canvas.height = this.HEIGHT;
+    this._canvas.width = this.WIDTH;
+    this._canvas.height = this.HEIGHT;
 
-    this._canvasContext = canvas.getContext("webgpu") as GPUCanvasContext;
+    this._canvasContext = this._canvas.getContext("webgpu") as GPUCanvasContext;
     if (!this._canvasContext) console.error("Cannot find a canvas context");
 
     const canvasConfig: GPUCanvasConfiguration = {
@@ -238,11 +249,16 @@ export default abstract class RendererBackend {
     this._device.queue.submit([commandBuffer]);
   }
 
-  protected getDelta() {
+  protected setFrameData() {
     const time = performance.now();
-    const delta: number = time - this._previousFrameTime;
-    this._previousFrameTime = time;
+    this._delta = time - this._previousFrameTime;
 
-    return delta;
+    this._frameCount++;
+
+    if (time - this._previousFrameTime >= 1000) {
+      this._fps.innerHTML = `FPS: ${this._frameCount}`;
+      this._frameCount = 0;
+      this._previousFrameTime = time;
+    }
   }
 }

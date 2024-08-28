@@ -1,15 +1,17 @@
 import main_vert from "@/shaders/main.vert.wgsl";
 import main_frag from "@/shaders/main.frag.wgsl";
-import initialize_compute from "@/shaders/initialize.compute.wgsl";
+import add_source_compute from "@/shaders/add_source.compute.wgsl";
 import divergence_compute from "@/shaders/divergence.compute.wgsl";
 import jacobi_compute from "@/shaders/jacobi.compute.wgsl";
 import texture_compute from "@/shaders/texture.compute.wgsl";
 import RendererBackend from "./renderer_backend";
 import Surface from "./geometry/surface";
+import { vec2, vec4 } from "gl-matrix";
+import { getRandomColor } from "./utils";
 
 export default class Renderer extends RendererBackend {
   private _mainPipeline!: GPURenderPipeline;
-  private _computeInitializePipeline!: GPUComputePipeline;
+  private _computeAddSourcePipeline!: GPUComputePipeline;
   private _computeDivergencePipeline!: GPUComputePipeline;
   private _computeJacobiPipeline!: GPUComputePipeline;
   private _computeTexturePipeline!: GPUComputePipeline;
@@ -18,6 +20,10 @@ export default class Renderer extends RendererBackend {
   private _indexBuffer!: GPUBuffer;
   private _indicesLength!: number;
   private _windowSizeUniformBuffer!: GPUBuffer;
+  private _velocityBuffer!: GPUBuffer;
+  private _densityBuffer!: GPUBuffer;
+  private _constantBuffer!: GPUBuffer;
+
   private _heightMapStorageBuffer!: GPUBuffer;
   private _heightMapTempStorageBuffer!: GPUBuffer;
   private _divergenceStorageBuffer!: GPUBuffer;
@@ -26,16 +32,23 @@ export default class Renderer extends RendererBackend {
   private _sampler!: GPUSampler;
 
   private _mainBindGroup!: GPUBindGroup;
-  private _computeInitializeBindGroup!: GPUBindGroup;
+  private _computeAddSourceBindGroup!: GPUBindGroup;
   private _computeDivergenceBindGroup!: GPUBindGroup;
   private _computeJacobiBindGroupOdd!: GPUBindGroup;
   private _computeJacobiBindGroupEven!: GPUBindGroup;
   private _computeTextureBindGroup!: GPUBindGroup;
 
-  private readonly WORKGROUP_SIZE = 16;
+  private _isTracking: boolean;
+  private _prevMousePos: vec2;
+  private _mouseVel: vec2;
+  private _density: vec4;
 
   constructor() {
     super();
+    this._isTracking = false;
+    this._prevMousePos = vec2.fromValues(0, 0);
+    this._mouseVel = vec2.fromValues(0, 0);
+    this._density = vec4.fromValues(0, 0, 0, 0);
   }
 
   // public methods
@@ -52,10 +65,14 @@ export default class Renderer extends RendererBackend {
 
     await this.createBindGroups();
 
-    await this.computeInitialize();
+    this.addEvent();
   }
 
   public async run() {
+    this.setFrameData();
+
+    await this.updateBuffer();
+
     await this.createEncoder();
 
     await this.update();
@@ -87,9 +104,9 @@ export default class Renderer extends RendererBackend {
       ],
     });
 
-    this._computeInitializePipeline = await this.createComputePipeline({
+    this._computeAddSourcePipeline = await this.createComputePipeline({
       label: "initialize compute pipeline",
-      computeShader: initialize_compute,
+      computeShader: add_source_compute,
     });
 
     this._computeDivergencePipeline = await this.createComputePipeline({
@@ -130,6 +147,37 @@ export default class Renderer extends RendererBackend {
   }
 
   private async createOtherBuffers() {
+    this._velocityBuffer = this._device.createBuffer({
+      label: "velocity storage buffer",
+      size: this.WIDTH * this.HEIGHT * 2 * Float32Array.BYTES_PER_ELEMENT,
+      usage:
+        GPUBufferUsage.STORAGE |
+        GPUBufferUsage.COPY_SRC |
+        GPUBufferUsage.COPY_DST,
+    });
+    const velocityMap = new Float32Array(this.WIDTH * this.HEIGHT * 2);
+    this._device.queue.writeBuffer(this._velocityBuffer, 0, velocityMap);
+
+    this._densityBuffer = this._device.createBuffer({
+      label: "height storage buffer",
+      size: this.WIDTH * this.HEIGHT * 4 * Float32Array.BYTES_PER_ELEMENT,
+      usage:
+        GPUBufferUsage.STORAGE |
+        GPUBufferUsage.COPY_SRC |
+        GPUBufferUsage.COPY_DST,
+    });
+    const densityMap = new Float32Array(this.WIDTH * this.HEIGHT * 4);
+    this._device.queue.writeBuffer(this._densityBuffer, 0, densityMap);
+
+    this._constantBuffer = this._device.createBuffer({
+      label: "constant storage buffer",
+      size: 12 * Float32Array.BYTES_PER_ELEMENT,
+      usage:
+        GPUBufferUsage.UNIFORM |
+        GPUBufferUsage.COPY_SRC |
+        GPUBufferUsage.COPY_DST,
+    });
+
     this._heightMapStorageBuffer = this._device.createBuffer({
       label: "height map storage buffer",
       size: this.WIDTH * this.HEIGHT * Float32Array.BYTES_PER_ELEMENT,
@@ -205,12 +253,14 @@ export default class Renderer extends RendererBackend {
       ],
     });
 
-    this._computeInitializeBindGroup = this._device.createBindGroup({
+    this._computeAddSourceBindGroup = this._device.createBindGroup({
       label: "compute initialize bind group",
-      layout: this._computeInitializePipeline.getBindGroupLayout(0),
+      layout: this._computeAddSourcePipeline.getBindGroupLayout(0),
       entries: [
-        { binding: 0, resource: { buffer: this._heightMapStorageBuffer } },
-        { binding: 1, resource: { buffer: this._windowSizeUniformBuffer } },
+        { binding: 0, resource: { buffer: this._velocityBuffer } },
+        { binding: 1, resource: { buffer: this._densityBuffer } },
+        { binding: 2, resource: { buffer: this._constantBuffer } },
+        { binding: 3, resource: { buffer: this._windowSizeUniformBuffer } },
       ],
     });
 
@@ -248,42 +298,60 @@ export default class Renderer extends RendererBackend {
     });
 
     this._computeTextureBindGroup = this._device.createBindGroup({
-      label: "compute movement bind group",
+      label: "compute texture bind group",
       layout: this._computeTexturePipeline.getBindGroupLayout(0),
       entries: [
-        { binding: 0, resource: { buffer: this._heightMapStorageBuffer } },
+        { binding: 0, resource: { buffer: this._densityBuffer } },
         { binding: 1, resource: this._heightMapTexture.createView() },
         { binding: 2, resource: { buffer: this._windowSizeUniformBuffer } },
       ],
     });
   }
 
-  private async computeInitialize() {
-    await this.createEncoder();
-
-    const computePassEncoder = this._commandEncoder.beginComputePass({
-      label: "compute initialize pass",
+  private addEvent() {
+    this._canvas.addEventListener("mousedown", () => {
+      this._isTracking = true;
+      this._mouseVel = vec2.fromValues(0, 0);
+      this._density = getRandomColor();
     });
 
-    computePassEncoder.setPipeline(this._computeInitializePipeline);
-    computePassEncoder.setBindGroup(0, this._computeInitializeBindGroup);
-    computePassEncoder.dispatchWorkgroups(
-      this.WIDTH / this.WORKGROUP_SIZE,
-      this.HEIGHT / this.WORKGROUP_SIZE,
-      1
+    this._canvas.addEventListener("mousemove", (e) => {
+      const rect = this._canvas.getBoundingClientRect();
+      const mousePos = vec2.fromValues(
+        e.clientX - rect.left,
+        rect.bottom - e.clientY
+      );
+
+      if (this._isTracking) {
+        this._mouseVel = vec2.subtract(
+          this._mouseVel,
+          mousePos,
+          this._prevMousePos
+        );
+      }
+
+      this._prevMousePos = vec2.clone(mousePos);
+    });
+
+    this._canvas.addEventListener("mouseup", () => {
+      this._isTracking = false;
+      this._mouseVel = vec2.fromValues(0, 0);
+    });
+  }
+
+  private async updateBuffer() {
+    this._device.queue.writeBuffer(
+      this._constantBuffer,
+      0,
+      new Float32Array([
+        ...this._prevMousePos,
+        ...this._mouseVel,
+        ...this._density,
+        this._delta,
+        0,
+        this._isTracking ? 1 : 0,
+      ])
     );
-
-    computePassEncoder.setPipeline(this._computeTexturePipeline);
-    computePassEncoder.setBindGroup(0, this._computeTextureBindGroup);
-    computePassEncoder.dispatchWorkgroups(
-      this.WIDTH / this.WORKGROUP_SIZE,
-      this.HEIGHT / this.WORKGROUP_SIZE,
-      1
-    );
-
-    computePassEncoder.end();
-
-    await this.submitCommandBuffer();
   }
 
   private async draw() {
@@ -306,27 +374,35 @@ export default class Renderer extends RendererBackend {
       label: "compute pass",
     });
 
-    computePassEncoder.setPipeline(this._computeDivergencePipeline);
-    computePassEncoder.setBindGroup(0, this._computeDivergenceBindGroup);
+    computePassEncoder.setPipeline(this._computeAddSourcePipeline);
+    computePassEncoder.setBindGroup(0, this._computeAddSourceBindGroup);
     computePassEncoder.dispatchWorkgroups(
       this.WIDTH / this.WORKGROUP_SIZE,
       this.HEIGHT / this.WORKGROUP_SIZE,
       1
     );
 
-    computePassEncoder.setPipeline(this._computeJacobiPipeline);
-    for (let i = 0; i < 40; i++) {
-      if (i % 2 == 0) {
-        computePassEncoder.setBindGroup(0, this._computeJacobiBindGroupOdd);
-      } else {
-        computePassEncoder.setBindGroup(0, this._computeJacobiBindGroupEven);
-      }
-      computePassEncoder.dispatchWorkgroups(
-        this.WIDTH / this.WORKGROUP_SIZE,
-        this.HEIGHT / this.WORKGROUP_SIZE,
-        1
-      );
-    }
+    // computePassEncoder.setPipeline(this._computeDivergencePipeline);
+    // computePassEncoder.setBindGroup(0, this._computeDivergenceBindGroup);
+    // computePassEncoder.dispatchWorkgroups(
+    //   this.WIDTH / this.WORKGROUP_SIZE,
+    //   this.HEIGHT / this.WORKGROUP_SIZE,
+    //   1
+    // );
+
+    // computePassEncoder.setPipeline(this._computeJacobiPipeline);
+    // for (let i = 0; i < 40; i++) {
+    //   if (i % 2 == 0) {
+    //     computePassEncoder.setBindGroup(0, this._computeJacobiBindGroupOdd);
+    //   } else {
+    //     computePassEncoder.setBindGroup(0, this._computeJacobiBindGroupEven);
+    //   }
+    //   computePassEncoder.dispatchWorkgroups(
+    //     this.WIDTH / this.WORKGROUP_SIZE,
+    //     this.HEIGHT / this.WORKGROUP_SIZE,
+    //     1
+    //   );
+    // }
 
     computePassEncoder.setPipeline(this._computeTexturePipeline);
     computePassEncoder.setBindGroup(0, this._computeTextureBindGroup);

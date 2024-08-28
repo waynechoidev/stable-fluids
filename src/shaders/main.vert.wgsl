@@ -8,10 +8,10 @@
 ) -> VSOutput {
   var output: VSOutput;
   var position = input.position;
-  var height = textureSampleLevel(heightMap, mySampler, input.texCoord, 0).r;
+  var color:vec4f = textureSampleLevel(heightMap, mySampler, input.texCoord, 0);
 
   output.position = vec4f(position, 1.0);
-  output.height = height;
+  output.color = color;
   
   return output;
 }
