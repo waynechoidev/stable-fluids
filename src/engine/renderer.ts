@@ -315,7 +315,6 @@ export default class Renderer extends RendererBackend {
       this._isTracking = true;
       this._mouseVel = vec2.fromValues(0, 0);
       if (this._colorIdx == colors.length) this._colorIdx = 0;
-      console.log(this._colorIdx);
       const color = colors[this._colorIdx++];
       this._density = vec4.fromValues(color[0], color[1], color[2], color[3]);
     });
