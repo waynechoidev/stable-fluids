@@ -1,4 +1,4 @@
-import { vec2, vec3, vec4 } from "gl-matrix";
+import { vec2, vec3 } from "gl-matrix";
 
 export type Vertex = {
   position: vec3;
