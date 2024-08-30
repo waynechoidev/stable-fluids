@@ -1,8 +1,9 @@
 import main_vert from "@/shaders/main.vert.wgsl";
 import main_frag from "@/shaders/main.frag.wgsl";
-import add_source_compute from "@/shaders/add_source.compute.wgsl";
+import add_impulse_compute from "@/shaders/add_impulse.compute.wgsl";
 import divergence_compute from "@/shaders/divergence.compute.wgsl";
-import jacobi_compute from "@/shaders/jacobi.compute.wgsl";
+import pressure_disturbance_compute from "@/shaders/pressure_disturbance.compute.wgsl";
+import diffusion_compute from "@/shaders/diffusion.compute.wgsl";
 import apply_pressure_compute from "@/shaders/apply_pressure.compute.wgsl";
 import texture_compute from "@/shaders/texture.compute.wgsl";
 import RendererBackend from "./renderer_backend";
@@ -12,10 +13,11 @@ import { colors } from "./utils";
 
 export default class Renderer extends RendererBackend {
   private _mainPipeline!: GPURenderPipeline;
-  private _computeAddSourcePipeline!: GPUComputePipeline;
+  private _computeAddImpulsePipeline!: GPUComputePipeline;
   private _computeDivergencePipeline!: GPUComputePipeline;
-  private _computeJacobiPipeline!: GPUComputePipeline;
+  private _computePressureDisturbancePipeline!: GPUComputePipeline;
   private _computeApplyPressurePipeline!: GPUComputePipeline;
+  private _computeDiffusionPipeline!: GPUComputePipeline;
   private _computeTexturePipeline!: GPUComputePipeline;
 
   private _vertexBuffer!: GPUBuffer;
@@ -39,11 +41,13 @@ export default class Renderer extends RendererBackend {
   private _sampler!: GPUSampler;
 
   private _mainBindGroup!: GPUBindGroup;
-  private _computeAddSourceBindGroup!: GPUBindGroup;
+  private _computeAddImpulseBindGroup!: GPUBindGroup;
   private _computeDivergenceBindGroup!: GPUBindGroup;
-  private _computeJacobiBindGroupOdd!: GPUBindGroup;
-  private _computeJacobiBindGroupEven!: GPUBindGroup;
+  private _computePressureDisturbanceBindGroupOdd!: GPUBindGroup;
+  private _computePressureDisturbanceBindGroupEven!: GPUBindGroup;
   private _computeApplyPressureBindGroup!: GPUBindGroup;
+  private _computeViscousDiffusionBindGroupOdd!: GPUBindGroup;
+  private _computeViscousDiffusionBindGroupEven!: GPUBindGroup;
   private _computeTextureBindGroup!: GPUBindGroup;
 
   private _isTracking: boolean;
@@ -114,9 +118,9 @@ export default class Renderer extends RendererBackend {
       ],
     });
 
-    this._computeAddSourcePipeline = await this.createComputePipeline({
-      label: "initialize compute pipeline",
-      computeShader: add_source_compute,
+    this._computeAddImpulsePipeline = await this.createComputePipeline({
+      label: "add impulse compute pipeline",
+      computeShader: add_impulse_compute,
     });
 
     this._computeDivergencePipeline = await this.createComputePipeline({
@@ -124,14 +128,21 @@ export default class Renderer extends RendererBackend {
       computeShader: divergence_compute,
     });
 
-    this._computeJacobiPipeline = await this.createComputePipeline({
-      label: "jacobi compute pipeline",
-      computeShader: jacobi_compute,
-    });
+    this._computePressureDisturbancePipeline = await this.createComputePipeline(
+      {
+        label: "pressure disturbance compute pipeline",
+        computeShader: pressure_disturbance_compute,
+      }
+    );
 
     this._computeApplyPressurePipeline = await this.createComputePipeline({
       label: "apply pressure compute pipeline",
       computeShader: apply_pressure_compute,
+    });
+
+    this._computeDiffusionPipeline = await this.createComputePipeline({
+      label: "diffusion compute pipeline",
+      computeShader: diffusion_compute,
     });
 
     this._computeTexturePipeline = await this.createComputePipeline({
@@ -220,9 +231,9 @@ export default class Renderer extends RendererBackend {
       ],
     });
 
-    this._computeAddSourceBindGroup = this._device.createBindGroup({
+    this._computeAddImpulseBindGroup = this._device.createBindGroup({
       label: "compute initialize bind group",
-      layout: this._computeAddSourcePipeline.getBindGroupLayout(0),
+      layout: this._computeAddImpulsePipeline.getBindGroupLayout(0),
       entries: [
         { binding: 0, resource: { buffer: this._windowSizeUniformBuffer } },
         { binding: 1, resource: { buffer: this._constantBuffer } },
@@ -243,27 +254,30 @@ export default class Renderer extends RendererBackend {
       ],
     });
 
-    this._computeJacobiBindGroupOdd = this._device.createBindGroup({
-      label: "compute jacobi bind group odd",
-      layout: this._computeJacobiPipeline.getBindGroupLayout(0),
-      entries: [
-        { binding: 0, resource: { buffer: this._windowSizeUniformBuffer } },
-        { binding: 1, resource: { buffer: this._divergenceBuffer } },
-        { binding: 2, resource: { buffer: this._pressureBuffer } },
-        { binding: 3, resource: { buffer: this._tempPessureBuffer } },
-      ],
-    });
+    this._computePressureDisturbanceBindGroupOdd = this._device.createBindGroup(
+      {
+        label: "compute pressure disturbance bind group odd",
+        layout: this._computePressureDisturbancePipeline.getBindGroupLayout(0),
+        entries: [
+          { binding: 0, resource: { buffer: this._windowSizeUniformBuffer } },
+          { binding: 1, resource: { buffer: this._divergenceBuffer } },
+          { binding: 2, resource: { buffer: this._pressureBuffer } },
+          { binding: 3, resource: { buffer: this._tempPessureBuffer } },
+        ],
+      }
+    );
 
-    this._computeJacobiBindGroupEven = this._device.createBindGroup({
-      label: "compute jacobi bind group even",
-      layout: this._computeJacobiPipeline.getBindGroupLayout(0),
-      entries: [
-        { binding: 0, resource: { buffer: this._windowSizeUniformBuffer } },
-        { binding: 1, resource: { buffer: this._divergenceBuffer } },
-        { binding: 2, resource: { buffer: this._tempPessureBuffer } },
-        { binding: 3, resource: { buffer: this._pressureBuffer } },
-      ],
-    });
+    this._computePressureDisturbanceBindGroupEven =
+      this._device.createBindGroup({
+        label: "compute pressure disturbance bind group even",
+        layout: this._computePressureDisturbancePipeline.getBindGroupLayout(0),
+        entries: [
+          { binding: 0, resource: { buffer: this._windowSizeUniformBuffer } },
+          { binding: 1, resource: { buffer: this._divergenceBuffer } },
+          { binding: 2, resource: { buffer: this._tempPessureBuffer } },
+          { binding: 3, resource: { buffer: this._pressureBuffer } },
+        ],
+      });
 
     this._computeApplyPressureBindGroup = this._device.createBindGroup({
       label: "compute apply pressure bind group",
@@ -272,6 +286,28 @@ export default class Renderer extends RendererBackend {
         { binding: 0, resource: { buffer: this._windowSizeUniformBuffer } },
         { binding: 1, resource: { buffer: this._pressureBuffer } },
         { binding: 2, resource: { buffer: this._velocityBuffer } },
+      ],
+    });
+
+    this._computeViscousDiffusionBindGroupOdd = this._device.createBindGroup({
+      label: "compute viscous diffusion bind group Odd",
+      layout: this._computeDiffusionPipeline.getBindGroupLayout(0),
+      entries: [
+        { binding: 0, resource: { buffer: this._windowSizeUniformBuffer } },
+        { binding: 1, resource: { buffer: this._constantBuffer } },
+        { binding: 2, resource: { buffer: this._velocityBuffer } },
+        { binding: 3, resource: { buffer: this._tempVelocityBuffer } },
+      ],
+    });
+
+    this._computeViscousDiffusionBindGroupEven = this._device.createBindGroup({
+      label: "compute viscous diffusion bind group Even",
+      layout: this._computeDiffusionPipeline.getBindGroupLayout(0),
+      entries: [
+        { binding: 0, resource: { buffer: this._windowSizeUniformBuffer } },
+        { binding: 1, resource: { buffer: this._constantBuffer } },
+        { binding: 2, resource: { buffer: this._tempVelocityBuffer } },
+        { binding: 3, resource: { buffer: this._velocityBuffer } },
       ],
     });
 
@@ -354,8 +390,8 @@ export default class Renderer extends RendererBackend {
       label: "compute pass",
     });
 
-    computePassEncoder.setPipeline(this._computeAddSourcePipeline);
-    computePassEncoder.setBindGroup(0, this._computeAddSourceBindGroup);
+    computePassEncoder.setPipeline(this._computeAddImpulsePipeline);
+    computePassEncoder.setBindGroup(0, this._computeAddImpulseBindGroup);
     computePassEncoder.dispatchWorkgroups(
       this.WIDTH / this.WORKGROUP_SIZE,
       this.HEIGHT / this.WORKGROUP_SIZE,
@@ -370,12 +406,18 @@ export default class Renderer extends RendererBackend {
       1
     );
 
-    computePassEncoder.setPipeline(this._computeJacobiPipeline);
+    computePassEncoder.setPipeline(this._computePressureDisturbancePipeline);
     for (let i = 1; i <= 10; i++) {
       if (i % 2 > 0) {
-        computePassEncoder.setBindGroup(0, this._computeJacobiBindGroupOdd);
+        computePassEncoder.setBindGroup(
+          0,
+          this._computePressureDisturbanceBindGroupOdd
+        );
       } else {
-        computePassEncoder.setBindGroup(0, this._computeJacobiBindGroupEven);
+        computePassEncoder.setBindGroup(
+          0,
+          this._computePressureDisturbanceBindGroupEven
+        );
       }
       computePassEncoder.dispatchWorkgroups(
         this.WIDTH / this.WORKGROUP_SIZE,
@@ -391,6 +433,26 @@ export default class Renderer extends RendererBackend {
       this.HEIGHT / this.WORKGROUP_SIZE,
       1
     );
+
+    computePassEncoder.setPipeline(this._computeDiffusionPipeline);
+    for (let i = 1; i <= 10; i++) {
+      if (i % 2 > 0) {
+        computePassEncoder.setBindGroup(
+          0,
+          this._computeViscousDiffusionBindGroupOdd
+        );
+      } else {
+        computePassEncoder.setBindGroup(
+          0,
+          this._computeViscousDiffusionBindGroupEven
+        );
+      }
+      computePassEncoder.dispatchWorkgroups(
+        this.WIDTH / this.WORKGROUP_SIZE,
+        this.HEIGHT / this.WORKGROUP_SIZE,
+        1
+      );
+    }
 
     computePassEncoder.setPipeline(this._computeTexturePipeline);
     computePassEncoder.setBindGroup(0, this._computeTextureBindGroup);
