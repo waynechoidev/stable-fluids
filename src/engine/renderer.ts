@@ -48,6 +48,8 @@ export default class Renderer extends RendererBackend {
   private _computeApplyPressureBindGroup!: GPUBindGroup;
   private _computeViscousDiffusionBindGroupOdd!: GPUBindGroup;
   private _computeViscousDiffusionBindGroupEven!: GPUBindGroup;
+  private _computeDensityDiffusionBindGroupOdd!: GPUBindGroup;
+  private _computeDensityDiffusionBindGroupEven!: GPUBindGroup;
   private _computeTextureBindGroup!: GPUBindGroup;
 
   private _isTracking: boolean;
@@ -311,6 +313,28 @@ export default class Renderer extends RendererBackend {
       ],
     });
 
+    this._computeDensityDiffusionBindGroupOdd = this._device.createBindGroup({
+      label: "compute viscous diffusion bind group Odd",
+      layout: this._computeDiffusionPipeline.getBindGroupLayout(0),
+      entries: [
+        { binding: 0, resource: { buffer: this._windowSizeUniformBuffer } },
+        { binding: 1, resource: { buffer: this._constantBuffer } },
+        { binding: 2, resource: { buffer: this._densityBuffer } },
+        { binding: 3, resource: { buffer: this._tempDensityBuffer } },
+      ],
+    });
+
+    this._computeDensityDiffusionBindGroupEven = this._device.createBindGroup({
+      label: "compute viscous diffusion bind group Even",
+      layout: this._computeDiffusionPipeline.getBindGroupLayout(0),
+      entries: [
+        { binding: 0, resource: { buffer: this._windowSizeUniformBuffer } },
+        { binding: 1, resource: { buffer: this._constantBuffer } },
+        { binding: 2, resource: { buffer: this._tempDensityBuffer } },
+        { binding: 3, resource: { buffer: this._densityBuffer } },
+      ],
+    });
+
     this._computeTextureBindGroup = this._device.createBindGroup({
       label: "compute texture bind group",
       layout: this._computeTexturePipeline.getBindGroupLayout(0),
@@ -445,6 +469,24 @@ export default class Renderer extends RendererBackend {
         computePassEncoder.setBindGroup(
           0,
           this._computeViscousDiffusionBindGroupEven
+        );
+      }
+      computePassEncoder.dispatchWorkgroups(
+        this.WIDTH / this.WORKGROUP_SIZE,
+        this.HEIGHT / this.WORKGROUP_SIZE,
+        1
+      );
+    }
+    for (let i = 1; i <= 10; i++) {
+      if (i % 2 > 0) {
+        computePassEncoder.setBindGroup(
+          0,
+          this._computeDensityDiffusionBindGroupOdd
+        );
+      } else {
+        computePassEncoder.setBindGroup(
+          0,
+          this._computeDensityDiffusionBindGroupEven
         );
       }
       computePassEncoder.dispatchWorkgroups(
