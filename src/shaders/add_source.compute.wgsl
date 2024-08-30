@@ -1,8 +1,8 @@
 #include "common.wgsl"
-@group(0) @binding(0) var<storage, read_write> velocityBuffer: array<vec2f>;
-@group(0) @binding(1) var<storage, read_write> densityBuffer: array<vec4f>;
-@group(0) @binding(2) var<uniform> constant: ConstantUniforms;
-@group(0) @binding(3) var<uniform> size: WindowSizeUniforms;
+@group(0) @binding(0) var<uniform> size: WindowSizeUniforms;
+@group(0) @binding(1) var<uniform> constant: ConstantUniforms;
+@group(0) @binding(2) var<storage, read_write> velocityBuffer: array<vec2f>;
+@group(0) @binding(3) var<storage, read_write> densityBuffer: array<vec4f>;
 
 const SRC_RADIUS:f32 = 50;
 const DISSIPATION_FACTOR:f32 = 0.005;

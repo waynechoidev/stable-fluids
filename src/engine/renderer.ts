@@ -216,10 +216,10 @@ export default class Renderer extends RendererBackend {
       label: "compute initialize bind group",
       layout: this._computeAddSourcePipeline.getBindGroupLayout(0),
       entries: [
-        { binding: 0, resource: { buffer: this._velocityBuffer } },
-        { binding: 1, resource: { buffer: this._densityBuffer } },
-        { binding: 2, resource: { buffer: this._constantBuffer } },
-        { binding: 3, resource: { buffer: this._windowSizeUniformBuffer } },
+        { binding: 0, resource: { buffer: this._windowSizeUniformBuffer } },
+        { binding: 1, resource: { buffer: this._constantBuffer } },
+        { binding: 2, resource: { buffer: this._velocityBuffer } },
+        { binding: 3, resource: { buffer: this._densityBuffer } },
       ],
     });
 
@@ -227,35 +227,35 @@ export default class Renderer extends RendererBackend {
       label: "compute divergence bind group",
       layout: this._computeDivergencePipeline.getBindGroupLayout(0),
       entries: [
-        { binding: 0, resource: { buffer: this._velocityBuffer } },
-        { binding: 1, resource: { buffer: this._divergenceBuffer } },
-        { binding: 2, resource: { buffer: this._pressureBuffer } },
-        { binding: 3, resource: { buffer: this._tempPessureBuffer } },
-        { binding: 4, resource: { buffer: this._windowSizeUniformBuffer } },
+        { binding: 0, resource: { buffer: this._windowSizeUniformBuffer } },
+        { binding: 1, resource: { buffer: this._velocityBuffer } },
+        { binding: 2, resource: { buffer: this._divergenceBuffer } },
+        { binding: 3, resource: { buffer: this._pressureBuffer } },
+        { binding: 4, resource: { buffer: this._tempPessureBuffer } },
       ],
     });
 
-    // this._computeJacobiBindGroupOdd = this._device.createBindGroup({
-    //   label: "compute jacobi bind group odd",
-    //   layout: this._computeJacobiPipeline.getBindGroupLayout(0),
-    //   entries: [
-    //     { binding: 0, resource: { buffer: this._heightMapTempStorageBuffer } },
-    //     { binding: 1, resource: { buffer: this._heightMapStorageBuffer } },
-    //     { binding: 2, resource: { buffer: this._divergenceStorageBuffer } },
-    //     { binding: 3, resource: { buffer: this._windowSizeUniformBuffer } },
-    //   ],
-    // });
+    this._computeJacobiBindGroupOdd = this._device.createBindGroup({
+      label: "compute jacobi bind group odd",
+      layout: this._computeJacobiPipeline.getBindGroupLayout(0),
+      entries: [
+        { binding: 0, resource: { buffer: this._windowSizeUniformBuffer } },
+        { binding: 1, resource: { buffer: this._divergenceBuffer } },
+        { binding: 2, resource: { buffer: this._pressureBuffer } },
+        { binding: 3, resource: { buffer: this._tempPessureBuffer } },
+      ],
+    });
 
-    // this._computeJacobiBindGroupEven = this._device.createBindGroup({
-    //   label: "compute jacobi bind group even",
-    //   layout: this._computeJacobiPipeline.getBindGroupLayout(0),
-    //   entries: [
-    //     { binding: 0, resource: { buffer: this._heightMapStorageBuffer } },
-    //     { binding: 1, resource: { buffer: this._heightMapTempStorageBuffer } },
-    //     { binding: 2, resource: { buffer: this._divergenceStorageBuffer } },
-    //     { binding: 3, resource: { buffer: this._windowSizeUniformBuffer } },
-    //   ],
-    // });
+    this._computeJacobiBindGroupEven = this._device.createBindGroup({
+      label: "compute jacobi bind group even",
+      layout: this._computeJacobiPipeline.getBindGroupLayout(0),
+      entries: [
+        { binding: 0, resource: { buffer: this._windowSizeUniformBuffer } },
+        { binding: 1, resource: { buffer: this._divergenceBuffer } },
+        { binding: 2, resource: { buffer: this._tempPessureBuffer } },
+        { binding: 3, resource: { buffer: this._pressureBuffer } },
+      ],
+    });
 
     this._computeTextureBindGroup = this._device.createBindGroup({
       label: "compute texture bind group",
@@ -344,27 +344,27 @@ export default class Renderer extends RendererBackend {
       1
     );
 
-    // computePassEncoder.setPipeline(this._computeDivergencePipeline);
-    // computePassEncoder.setBindGroup(0, this._computeDivergenceBindGroup);
-    // computePassEncoder.dispatchWorkgroups(
-    //   this.WIDTH / this.WORKGROUP_SIZE,
-    //   this.HEIGHT / this.WORKGROUP_SIZE,
-    //   1
-    // );
+    computePassEncoder.setPipeline(this._computeDivergencePipeline);
+    computePassEncoder.setBindGroup(0, this._computeDivergenceBindGroup);
+    computePassEncoder.dispatchWorkgroups(
+      this.WIDTH / this.WORKGROUP_SIZE,
+      this.HEIGHT / this.WORKGROUP_SIZE,
+      1
+    );
 
-    // computePassEncoder.setPipeline(this._computeJacobiPipeline);
-    // for (let i = 0; i < 40; i++) {
-    //   if (i % 2 == 0) {
-    //     computePassEncoder.setBindGroup(0, this._computeJacobiBindGroupOdd);
-    //   } else {
-    //     computePassEncoder.setBindGroup(0, this._computeJacobiBindGroupEven);
-    //   }
-    //   computePassEncoder.dispatchWorkgroups(
-    //     this.WIDTH / this.WORKGROUP_SIZE,
-    //     this.HEIGHT / this.WORKGROUP_SIZE,
-    //     1
-    //   );
-    // }
+    computePassEncoder.setPipeline(this._computeJacobiPipeline);
+    for (let i = 1; i <= 10; i++) {
+      if (i % 2 > 0) {
+        computePassEncoder.setBindGroup(0, this._computeJacobiBindGroupOdd);
+      } else {
+        computePassEncoder.setBindGroup(0, this._computeJacobiBindGroupEven);
+      }
+      computePassEncoder.dispatchWorkgroups(
+        this.WIDTH / this.WORKGROUP_SIZE,
+        this.HEIGHT / this.WORKGROUP_SIZE,
+        1
+      );
+    }
 
     computePassEncoder.setPipeline(this._computeTexturePipeline);
     computePassEncoder.setBindGroup(0, this._computeTextureBindGroup);
