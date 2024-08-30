@@ -3,6 +3,7 @@ import main_frag from "@/shaders/main.frag.wgsl";
 import add_source_compute from "@/shaders/add_source.compute.wgsl";
 import divergence_compute from "@/shaders/divergence.compute.wgsl";
 import jacobi_compute from "@/shaders/jacobi.compute.wgsl";
+import apply_pressure_compute from "@/shaders/apply_pressure.compute.wgsl";
 import texture_compute from "@/shaders/texture.compute.wgsl";
 import RendererBackend from "./renderer_backend";
 import Surface from "./geometry/surface";
@@ -14,6 +15,7 @@ export default class Renderer extends RendererBackend {
   private _computeAddSourcePipeline!: GPUComputePipeline;
   private _computeDivergencePipeline!: GPUComputePipeline;
   private _computeJacobiPipeline!: GPUComputePipeline;
+  private _computeApplyPressurePipeline!: GPUComputePipeline;
   private _computeTexturePipeline!: GPUComputePipeline;
 
   private _vertexBuffer!: GPUBuffer;
@@ -41,6 +43,7 @@ export default class Renderer extends RendererBackend {
   private _computeDivergenceBindGroup!: GPUBindGroup;
   private _computeJacobiBindGroupOdd!: GPUBindGroup;
   private _computeJacobiBindGroupEven!: GPUBindGroup;
+  private _computeApplyPressureBindGroup!: GPUBindGroup;
   private _computeTextureBindGroup!: GPUBindGroup;
 
   private _isTracking: boolean;
@@ -124,6 +127,11 @@ export default class Renderer extends RendererBackend {
     this._computeJacobiPipeline = await this.createComputePipeline({
       label: "jacobi compute pipeline",
       computeShader: jacobi_compute,
+    });
+
+    this._computeApplyPressurePipeline = await this.createComputePipeline({
+      label: "apply pressure compute pipeline",
+      computeShader: apply_pressure_compute,
     });
 
     this._computeTexturePipeline = await this.createComputePipeline({
@@ -257,6 +265,16 @@ export default class Renderer extends RendererBackend {
       ],
     });
 
+    this._computeApplyPressureBindGroup = this._device.createBindGroup({
+      label: "compute apply pressure bind group",
+      layout: this._computeApplyPressurePipeline.getBindGroupLayout(0),
+      entries: [
+        { binding: 0, resource: { buffer: this._windowSizeUniformBuffer } },
+        { binding: 1, resource: { buffer: this._pressureBuffer } },
+        { binding: 2, resource: { buffer: this._velocityBuffer } },
+      ],
+    });
+
     this._computeTextureBindGroup = this._device.createBindGroup({
       label: "compute texture bind group",
       layout: this._computeTexturePipeline.getBindGroupLayout(0),
@@ -365,6 +383,14 @@ export default class Renderer extends RendererBackend {
         1
       );
     }
+
+    computePassEncoder.setPipeline(this._computeApplyPressurePipeline);
+    computePassEncoder.setBindGroup(0, this._computeApplyPressureBindGroup);
+    computePassEncoder.dispatchWorkgroups(
+      this.WIDTH / this.WORKGROUP_SIZE,
+      this.HEIGHT / this.WORKGROUP_SIZE,
+      1
+    );
 
     computePassEncoder.setPipeline(this._computeTexturePipeline);
     computePassEncoder.setBindGroup(0, this._computeTextureBindGroup);
