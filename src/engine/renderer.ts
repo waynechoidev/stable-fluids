@@ -7,6 +7,7 @@ import diffusion_compute from "@/shaders/diffusion.compute.wgsl";
 import apply_pressure_compute from "@/shaders/apply_pressure.compute.wgsl";
 import vorticity_compute from "@/shaders/vorticity.compute.wgsl";
 import vorticity_force_compute from "@/shaders/vorticity_force.compute.wgsl";
+import advection_compute from "@/shaders/advection.compute.wgsl";
 import texture_compute from "@/shaders/texture.compute.wgsl";
 import RendererBackend from "./renderer_backend";
 import Surface from "./geometry/surface";
@@ -22,6 +23,7 @@ export default class Renderer extends RendererBackend {
   private _computeDiffusionPipeline!: GPUComputePipeline;
   private _computeVorticityPipeline!: GPUComputePipeline;
   private _computeVorticityForcePipeline!: GPUComputePipeline;
+  private _computeAdvectionPipeline!: GPUComputePipeline;
   private _computeTexturePipeline!: GPUComputePipeline;
 
   private _vertexBuffer!: GPUBuffer;
@@ -50,12 +52,11 @@ export default class Renderer extends RendererBackend {
   private _computePressureDisturbanceBindGroupOdd!: GPUBindGroup;
   private _computePressureDisturbanceBindGroupEven!: GPUBindGroup;
   private _computeApplyPressureBindGroup!: GPUBindGroup;
-  private _computeViscousDiffusionBindGroupOdd!: GPUBindGroup;
-  private _computeViscousDiffusionBindGroupEven!: GPUBindGroup;
-  private _computeDensityDiffusionBindGroupOdd!: GPUBindGroup;
-  private _computeDensityDiffusionBindGroupEven!: GPUBindGroup;
+  private _computeDiffusionBindGroupOdd!: GPUBindGroup;
+  private _computeDiffusionBindGroupEven!: GPUBindGroup;
   private _computeVorticityBindGroup!: GPUBindGroup;
   private _computeVorticityForceBindGroup!: GPUBindGroup;
+  private _computeAdvectionBindGroup!: GPUBindGroup;
   private _computeTextureBindGroup!: GPUBindGroup;
 
   private _isTracking: boolean;
@@ -161,6 +162,11 @@ export default class Renderer extends RendererBackend {
     this._computeVorticityForcePipeline = await this.createComputePipeline({
       label: "vorticity force compute pipeline",
       computeShader: vorticity_force_compute,
+    });
+
+    this._computeAdvectionPipeline = await this.createComputePipeline({
+      label: "advection compute pipeline",
+      computeShader: advection_compute,
     });
 
     this._computeTexturePipeline = await this.createComputePipeline({
@@ -307,7 +313,7 @@ export default class Renderer extends RendererBackend {
       ],
     });
 
-    this._computeViscousDiffusionBindGroupOdd = this._device.createBindGroup({
+    this._computeDiffusionBindGroupOdd = this._device.createBindGroup({
       label: "compute viscous diffusion bind group Odd",
       layout: this._computeDiffusionPipeline.getBindGroupLayout(0),
       entries: [
@@ -315,10 +321,12 @@ export default class Renderer extends RendererBackend {
         { binding: 1, resource: { buffer: this._constantBuffer } },
         { binding: 2, resource: { buffer: this._velocityBuffer } },
         { binding: 3, resource: { buffer: this._tempVelocityBuffer } },
+        { binding: 4, resource: { buffer: this._densityBuffer } },
+        { binding: 5, resource: { buffer: this._tempDensityBuffer } },
       ],
     });
 
-    this._computeViscousDiffusionBindGroupEven = this._device.createBindGroup({
+    this._computeDiffusionBindGroupEven = this._device.createBindGroup({
       label: "compute viscous diffusion bind group Even",
       layout: this._computeDiffusionPipeline.getBindGroupLayout(0),
       entries: [
@@ -326,28 +334,8 @@ export default class Renderer extends RendererBackend {
         { binding: 1, resource: { buffer: this._constantBuffer } },
         { binding: 2, resource: { buffer: this._tempVelocityBuffer } },
         { binding: 3, resource: { buffer: this._velocityBuffer } },
-      ],
-    });
-
-    this._computeDensityDiffusionBindGroupOdd = this._device.createBindGroup({
-      label: "compute viscous diffusion bind group Odd",
-      layout: this._computeDiffusionPipeline.getBindGroupLayout(0),
-      entries: [
-        { binding: 0, resource: { buffer: this._windowSizeUniformBuffer } },
-        { binding: 1, resource: { buffer: this._constantBuffer } },
-        { binding: 2, resource: { buffer: this._densityBuffer } },
-        { binding: 3, resource: { buffer: this._tempDensityBuffer } },
-      ],
-    });
-
-    this._computeDensityDiffusionBindGroupEven = this._device.createBindGroup({
-      label: "compute viscous diffusion bind group Even",
-      layout: this._computeDiffusionPipeline.getBindGroupLayout(0),
-      entries: [
-        { binding: 0, resource: { buffer: this._windowSizeUniformBuffer } },
-        { binding: 1, resource: { buffer: this._constantBuffer } },
-        { binding: 2, resource: { buffer: this._tempDensityBuffer } },
-        { binding: 3, resource: { buffer: this._densityBuffer } },
+        { binding: 4, resource: { buffer: this._tempDensityBuffer } },
+        { binding: 5, resource: { buffer: this._densityBuffer } },
       ],
     });
 
@@ -368,6 +356,19 @@ export default class Renderer extends RendererBackend {
         { binding: 0, resource: { buffer: this._windowSizeUniformBuffer } },
         { binding: 1, resource: { buffer: this._vorticityBuffer } },
         { binding: 2, resource: { buffer: this._tempVelocityBuffer } },
+      ],
+    });
+
+    this._computeAdvectionBindGroup = this._device.createBindGroup({
+      label: "compute advection bind group Even",
+      layout: this._computeAdvectionPipeline.getBindGroupLayout(0),
+      entries: [
+        { binding: 0, resource: { buffer: this._windowSizeUniformBuffer } },
+        { binding: 1, resource: { buffer: this._constantBuffer } },
+        { binding: 2, resource: { buffer: this._tempVelocityBuffer } },
+        { binding: 3, resource: { buffer: this._tempDensityBuffer } },
+        { binding: 4, resource: { buffer: this._velocityBuffer } },
+        { binding: 5, resource: { buffer: this._densityBuffer } },
       ],
     });
 
@@ -467,7 +468,7 @@ export default class Renderer extends RendererBackend {
     );
 
     computePassEncoder.setPipeline(this._computePressureDisturbancePipeline);
-    for (let i = 1; i <= 10; i++) {
+    for (let i = 1; i <= 2; i++) {
       if (i % 2 > 0) {
         computePassEncoder.setBindGroup(
           0,
@@ -495,35 +496,11 @@ export default class Renderer extends RendererBackend {
     );
 
     computePassEncoder.setPipeline(this._computeDiffusionPipeline);
-    for (let i = 1; i <= 10; i++) {
+    for (let i = 1; i <= 3; i++) {
       if (i % 2 > 0) {
-        computePassEncoder.setBindGroup(
-          0,
-          this._computeViscousDiffusionBindGroupOdd
-        );
+        computePassEncoder.setBindGroup(0, this._computeDiffusionBindGroupOdd);
       } else {
-        computePassEncoder.setBindGroup(
-          0,
-          this._computeViscousDiffusionBindGroupEven
-        );
-      }
-      computePassEncoder.dispatchWorkgroups(
-        this.WIDTH / this.WORKGROUP_SIZE,
-        this.HEIGHT / this.WORKGROUP_SIZE,
-        1
-      );
-    }
-    for (let i = 1; i <= 10; i++) {
-      if (i % 2 > 0) {
-        computePassEncoder.setBindGroup(
-          0,
-          this._computeDensityDiffusionBindGroupOdd
-        );
-      } else {
-        computePassEncoder.setBindGroup(
-          0,
-          this._computeDensityDiffusionBindGroupEven
-        );
+        computePassEncoder.setBindGroup(0, this._computeDiffusionBindGroupEven);
       }
       computePassEncoder.dispatchWorkgroups(
         this.WIDTH / this.WORKGROUP_SIZE,
@@ -542,6 +519,14 @@ export default class Renderer extends RendererBackend {
 
     computePassEncoder.setPipeline(this._computeVorticityForcePipeline);
     computePassEncoder.setBindGroup(0, this._computeVorticityForceBindGroup);
+    computePassEncoder.dispatchWorkgroups(
+      this.WIDTH / this.WORKGROUP_SIZE,
+      this.HEIGHT / this.WORKGROUP_SIZE,
+      1
+    );
+
+    computePassEncoder.setPipeline(this._computeAdvectionPipeline);
+    computePassEncoder.setBindGroup(0, this._computeAdvectionBindGroup);
     computePassEncoder.dispatchWorkgroups(
       this.WIDTH / this.WORKGROUP_SIZE,
       this.HEIGHT / this.WORKGROUP_SIZE,

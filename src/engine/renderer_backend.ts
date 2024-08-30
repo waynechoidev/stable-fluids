@@ -12,6 +12,7 @@ export default abstract class RendererBackend {
 
   protected _fps: HTMLElement;
   protected _previousFrameTime: number;
+  protected _previousFpsUpdateTime: number;
   protected _delta: number;
   protected _frameCount: number;
 
@@ -23,6 +24,7 @@ export default abstract class RendererBackend {
       this.WORKGROUP_SIZE;
 
     this._previousFrameTime = performance.now();
+    this._previousFpsUpdateTime = performance.now();
     this._delta = 0;
     this._frameCount = 0;
     this._fps = document.getElementById("fps") as HTMLElement;
@@ -249,15 +251,19 @@ export default abstract class RendererBackend {
 
   protected setFrameData() {
     const time = performance.now();
-    this._delta = time - this._previousFrameTime;
+    const currentDelta = time - this._previousFrameTime;
+
+    this._delta = this._delta * 0.9 + currentDelta * 0.1;
 
     this._frameCount++;
 
-    if (time - this._previousFrameTime >= 1000) {
+    if (time - this._previousFpsUpdateTime >= 1000) {
       this._fps.innerHTML = `FPS: ${this._frameCount}`;
       this._frameCount = 0;
-      this._previousFrameTime = time;
+      this._previousFpsUpdateTime = time;
     }
+
+    this._previousFrameTime = time;
   }
 
   protected initializeVecNArray(n: number) {

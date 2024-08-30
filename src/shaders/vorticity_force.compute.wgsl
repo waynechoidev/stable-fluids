@@ -11,6 +11,8 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
 
     let N:Neighbors = getNeighbors(x, y, size);
 
+    let dx = vec2f(1.0 / f32(size.width), 1.0 / f32(size.height));
+
     let eta = vec2f((abs(vorticity[getIdx(N.right, size.width)]) - abs(vorticity[getIdx(N.left, size.width)])) / (2.0 * f32(x)),
                     (abs(vorticity[getIdx(N.up, size.width)]) - abs(vorticity[getIdx(N.down, size.width)])) / (2.0 * f32(y)));
 
@@ -21,5 +23,5 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
     let psi = vec3f(normalize(eta).xy, 0.0);
     let omega = vec3f(0, 0, vorticity[idx]);
 
-    velocity[idx] += 0.2 * cross(psi, omega).xy * 2.0;
+    velocity[idx] += 0.2 * cross(psi, omega).xy * dx;
 }

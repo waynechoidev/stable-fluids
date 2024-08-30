@@ -52,5 +52,10 @@ fn getNeighbors(x:u32, y:u32, size:WindowSizeUniforms) -> Neighbors {
       down.y = size.height - 1;
   }
 
+    // let left = vec2u(clamp(x-1, 0, size.width), y);
+    // let right = vec2u(clamp(x+1, 0, size.width), y);
+    // let up = vec2u(x, clamp(y+1, 0, size.height));
+    // let down = vec2u(x, clamp(y-1, 0, size.height));
+
   return Neighbors(left, right, up, down);
 }
