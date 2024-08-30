@@ -5,6 +5,8 @@ import divergence_compute from "@/shaders/divergence.compute.wgsl";
 import pressure_disturbance_compute from "@/shaders/pressure_disturbance.compute.wgsl";
 import diffusion_compute from "@/shaders/diffusion.compute.wgsl";
 import apply_pressure_compute from "@/shaders/apply_pressure.compute.wgsl";
+import vorticity_compute from "@/shaders/vorticity.compute.wgsl";
+import vorticity_force_compute from "@/shaders/vorticity_force.compute.wgsl";
 import texture_compute from "@/shaders/texture.compute.wgsl";
 import RendererBackend from "./renderer_backend";
 import Surface from "./geometry/surface";
@@ -18,6 +20,8 @@ export default class Renderer extends RendererBackend {
   private _computePressureDisturbancePipeline!: GPUComputePipeline;
   private _computeApplyPressurePipeline!: GPUComputePipeline;
   private _computeDiffusionPipeline!: GPUComputePipeline;
+  private _computeVorticityPipeline!: GPUComputePipeline;
+  private _computeVorticityForcePipeline!: GPUComputePipeline;
   private _computeTexturePipeline!: GPUComputePipeline;
 
   private _vertexBuffer!: GPUBuffer;
@@ -50,6 +54,8 @@ export default class Renderer extends RendererBackend {
   private _computeViscousDiffusionBindGroupEven!: GPUBindGroup;
   private _computeDensityDiffusionBindGroupOdd!: GPUBindGroup;
   private _computeDensityDiffusionBindGroupEven!: GPUBindGroup;
+  private _computeVorticityBindGroup!: GPUBindGroup;
+  private _computeVorticityForceBindGroup!: GPUBindGroup;
   private _computeTextureBindGroup!: GPUBindGroup;
 
   private _isTracking: boolean;
@@ -145,6 +151,16 @@ export default class Renderer extends RendererBackend {
     this._computeDiffusionPipeline = await this.createComputePipeline({
       label: "diffusion compute pipeline",
       computeShader: diffusion_compute,
+    });
+
+    this._computeVorticityPipeline = await this.createComputePipeline({
+      label: "vorticity compute pipeline",
+      computeShader: vorticity_compute,
+    });
+
+    this._computeVorticityForcePipeline = await this.createComputePipeline({
+      label: "vorticity force compute pipeline",
+      computeShader: vorticity_force_compute,
     });
 
     this._computeTexturePipeline = await this.createComputePipeline({
@@ -335,6 +351,26 @@ export default class Renderer extends RendererBackend {
       ],
     });
 
+    this._computeVorticityBindGroup = this._device.createBindGroup({
+      label: "compute vorticity bind group Even",
+      layout: this._computeVorticityPipeline.getBindGroupLayout(0),
+      entries: [
+        { binding: 0, resource: { buffer: this._windowSizeUniformBuffer } },
+        { binding: 1, resource: { buffer: this._velocityBuffer } },
+        { binding: 2, resource: { buffer: this._vorticityBuffer } },
+      ],
+    });
+
+    this._computeVorticityForceBindGroup = this._device.createBindGroup({
+      label: "compute vorticity force bind group Even",
+      layout: this._computeVorticityForcePipeline.getBindGroupLayout(0),
+      entries: [
+        { binding: 0, resource: { buffer: this._windowSizeUniformBuffer } },
+        { binding: 1, resource: { buffer: this._vorticityBuffer } },
+        { binding: 2, resource: { buffer: this._tempVelocityBuffer } },
+      ],
+    });
+
     this._computeTextureBindGroup = this._device.createBindGroup({
       label: "compute texture bind group",
       layout: this._computeTexturePipeline.getBindGroupLayout(0),
@@ -495,6 +531,22 @@ export default class Renderer extends RendererBackend {
         1
       );
     }
+
+    computePassEncoder.setPipeline(this._computeVorticityPipeline);
+    computePassEncoder.setBindGroup(0, this._computeVorticityBindGroup);
+    computePassEncoder.dispatchWorkgroups(
+      this.WIDTH / this.WORKGROUP_SIZE,
+      this.HEIGHT / this.WORKGROUP_SIZE,
+      1
+    );
+
+    computePassEncoder.setPipeline(this._computeVorticityForcePipeline);
+    computePassEncoder.setBindGroup(0, this._computeVorticityForceBindGroup);
+    computePassEncoder.dispatchWorkgroups(
+      this.WIDTH / this.WORKGROUP_SIZE,
+      this.HEIGHT / this.WORKGROUP_SIZE,
+      1
+    );
 
     computePassEncoder.setPipeline(this._computeTexturePipeline);
     computePassEncoder.setBindGroup(0, this._computeTextureBindGroup);
