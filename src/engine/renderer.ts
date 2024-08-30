@@ -19,16 +19,21 @@ export default class Renderer extends RendererBackend {
   private _vertexBuffer!: GPUBuffer;
   private _indexBuffer!: GPUBuffer;
   private _indicesLength!: number;
+
   private _windowSizeUniformBuffer!: GPUBuffer;
+
   private _velocityBuffer!: GPUBuffer;
+  private _tempVelocityBuffer!: GPUBuffer;
   private _densityBuffer!: GPUBuffer;
+  private _tempDensityBuffer!: GPUBuffer;
+  private _divergenceBuffer!: GPUBuffer;
+  private _vorticityBuffer!: GPUBuffer;
+  private _pressureBuffer!: GPUBuffer;
+  private _tempPessureBuffer!: GPUBuffer;
+
   private _constantBuffer!: GPUBuffer;
 
-  private _heightMapStorageBuffer!: GPUBuffer;
-  private _heightMapTempStorageBuffer!: GPUBuffer;
-  private _divergenceStorageBuffer!: GPUBuffer;
-
-  private _heightMapTexture!: GPUTexture;
+  private _densityMapTexture!: GPUTexture;
   private _sampler!: GPUSampler;
 
   private _mainBindGroup!: GPUBindGroup;
@@ -149,27 +154,14 @@ export default class Renderer extends RendererBackend {
   }
 
   private async createOtherBuffers() {
-    this._velocityBuffer = this._device.createBuffer({
-      label: "velocity storage buffer",
-      size: this.WIDTH * this.HEIGHT * 2 * Float32Array.BYTES_PER_ELEMENT,
-      usage:
-        GPUBufferUsage.STORAGE |
-        GPUBufferUsage.COPY_SRC |
-        GPUBufferUsage.COPY_DST,
-    });
-    const velocityMap = new Float32Array(this.WIDTH * this.HEIGHT * 2);
-    this._device.queue.writeBuffer(this._velocityBuffer, 0, velocityMap);
-
-    this._densityBuffer = this._device.createBuffer({
-      label: "height storage buffer",
-      size: this.WIDTH * this.HEIGHT * 4 * Float32Array.BYTES_PER_ELEMENT,
-      usage:
-        GPUBufferUsage.STORAGE |
-        GPUBufferUsage.COPY_SRC |
-        GPUBufferUsage.COPY_DST,
-    });
-    const densityMap = new Float32Array(this.WIDTH * this.HEIGHT * 4);
-    this._device.queue.writeBuffer(this._densityBuffer, 0, densityMap);
+    this._velocityBuffer = this.createSurfaceBuffer("velocity", 2);
+    this._tempVelocityBuffer = this.createSurfaceBuffer("temp velocity", 2);
+    this._densityBuffer = this.createSurfaceBuffer("density", 4);
+    this._tempDensityBuffer = this.createSurfaceBuffer("temp density", 4);
+    this._divergenceBuffer = this.createSurfaceBuffer("divergence", 1);
+    this._vorticityBuffer = this.createSurfaceBuffer("vorticity", 2);
+    this._pressureBuffer = this.createSurfaceBuffer("pressure", 1);
+    this._tempPessureBuffer = this.createSurfaceBuffer("temp pressure", 1);
 
     this._constantBuffer = this._device.createBuffer({
       label: "constant storage buffer",
@@ -179,41 +171,6 @@ export default class Renderer extends RendererBackend {
         GPUBufferUsage.COPY_SRC |
         GPUBufferUsage.COPY_DST,
     });
-
-    this._heightMapStorageBuffer = this._device.createBuffer({
-      label: "height map storage buffer",
-      size: this.WIDTH * this.HEIGHT * Float32Array.BYTES_PER_ELEMENT,
-      usage:
-        GPUBufferUsage.STORAGE |
-        GPUBufferUsage.COPY_SRC |
-        GPUBufferUsage.COPY_DST,
-    });
-    const heightMap = new Float32Array(this.WIDTH * this.HEIGHT);
-    this._device.queue.writeBuffer(this._heightMapStorageBuffer, 0, heightMap);
-
-    this._heightMapTempStorageBuffer = this._device.createBuffer({
-      label: "height map temp storage buffer",
-      size: this.WIDTH * this.HEIGHT * Float32Array.BYTES_PER_ELEMENT,
-      usage:
-        GPUBufferUsage.STORAGE |
-        GPUBufferUsage.COPY_SRC |
-        GPUBufferUsage.COPY_DST,
-    });
-    this._device.queue.writeBuffer(
-      this._heightMapTempStorageBuffer,
-      0,
-      heightMap
-    );
-
-    this._divergenceStorageBuffer = this._device.createBuffer({
-      label: "divergence storage buffer",
-      size: this.WIDTH * this.HEIGHT * Float32Array.BYTES_PER_ELEMENT,
-      usage:
-        GPUBufferUsage.STORAGE |
-        GPUBufferUsage.COPY_SRC |
-        GPUBufferUsage.COPY_DST,
-    });
-    this._device.queue.writeBuffer(this._divergenceStorageBuffer, 0, heightMap);
 
     this._windowSizeUniformBuffer = this._device.createBuffer({
       label: "window size uniforms",
@@ -228,7 +185,7 @@ export default class Renderer extends RendererBackend {
   }
 
   private async createTextures() {
-    this._heightMapTexture = this._device.createTexture({
+    this._densityMapTexture = this._device.createTexture({
       label: "height map texture",
       size: [this.WIDTH, this.HEIGHT],
       format: "rgba8unorm",
@@ -247,10 +204,10 @@ export default class Renderer extends RendererBackend {
 
   private async createBindGroups() {
     this._mainBindGroup = this._device.createBindGroup({
-      label: "bind group for object",
+      label: "main bind group",
       layout: this._mainPipeline.getBindGroupLayout(0),
       entries: [
-        { binding: 0, resource: this._heightMapTexture.createView() },
+        { binding: 0, resource: this._densityMapTexture.createView() },
         { binding: 1, resource: this._sampler },
       ],
     });
@@ -270,41 +227,42 @@ export default class Renderer extends RendererBackend {
       label: "compute divergence bind group",
       layout: this._computeDivergencePipeline.getBindGroupLayout(0),
       entries: [
-        { binding: 0, resource: { buffer: this._heightMapStorageBuffer } },
-        { binding: 1, resource: { buffer: this._heightMapTempStorageBuffer } },
-        { binding: 2, resource: { buffer: this._divergenceStorageBuffer } },
-        { binding: 3, resource: { buffer: this._windowSizeUniformBuffer } },
+        { binding: 0, resource: { buffer: this._velocityBuffer } },
+        { binding: 1, resource: { buffer: this._divergenceBuffer } },
+        { binding: 2, resource: { buffer: this._pressureBuffer } },
+        { binding: 3, resource: { buffer: this._tempPessureBuffer } },
+        { binding: 4, resource: { buffer: this._windowSizeUniformBuffer } },
       ],
     });
 
-    this._computeJacobiBindGroupOdd = this._device.createBindGroup({
-      label: "compute jacobi bind group odd",
-      layout: this._computeJacobiPipeline.getBindGroupLayout(0),
-      entries: [
-        { binding: 0, resource: { buffer: this._heightMapTempStorageBuffer } },
-        { binding: 1, resource: { buffer: this._heightMapStorageBuffer } },
-        { binding: 2, resource: { buffer: this._divergenceStorageBuffer } },
-        { binding: 3, resource: { buffer: this._windowSizeUniformBuffer } },
-      ],
-    });
+    // this._computeJacobiBindGroupOdd = this._device.createBindGroup({
+    //   label: "compute jacobi bind group odd",
+    //   layout: this._computeJacobiPipeline.getBindGroupLayout(0),
+    //   entries: [
+    //     { binding: 0, resource: { buffer: this._heightMapTempStorageBuffer } },
+    //     { binding: 1, resource: { buffer: this._heightMapStorageBuffer } },
+    //     { binding: 2, resource: { buffer: this._divergenceStorageBuffer } },
+    //     { binding: 3, resource: { buffer: this._windowSizeUniformBuffer } },
+    //   ],
+    // });
 
-    this._computeJacobiBindGroupEven = this._device.createBindGroup({
-      label: "compute jacobi bind group even",
-      layout: this._computeJacobiPipeline.getBindGroupLayout(0),
-      entries: [
-        { binding: 0, resource: { buffer: this._heightMapStorageBuffer } },
-        { binding: 1, resource: { buffer: this._heightMapTempStorageBuffer } },
-        { binding: 2, resource: { buffer: this._divergenceStorageBuffer } },
-        { binding: 3, resource: { buffer: this._windowSizeUniformBuffer } },
-      ],
-    });
+    // this._computeJacobiBindGroupEven = this._device.createBindGroup({
+    //   label: "compute jacobi bind group even",
+    //   layout: this._computeJacobiPipeline.getBindGroupLayout(0),
+    //   entries: [
+    //     { binding: 0, resource: { buffer: this._heightMapStorageBuffer } },
+    //     { binding: 1, resource: { buffer: this._heightMapTempStorageBuffer } },
+    //     { binding: 2, resource: { buffer: this._divergenceStorageBuffer } },
+    //     { binding: 3, resource: { buffer: this._windowSizeUniformBuffer } },
+    //   ],
+    // });
 
     this._computeTextureBindGroup = this._device.createBindGroup({
       label: "compute texture bind group",
       layout: this._computeTexturePipeline.getBindGroupLayout(0),
       entries: [
         { binding: 0, resource: { buffer: this._densityBuffer } },
-        { binding: 1, resource: this._heightMapTexture.createView() },
+        { binding: 1, resource: this._densityMapTexture.createView() },
         { binding: 2, resource: { buffer: this._windowSizeUniformBuffer } },
       ],
     });

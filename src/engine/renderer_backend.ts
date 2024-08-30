@@ -138,7 +138,7 @@ export default abstract class RendererBackend {
     return pipeline;
   }
 
-  public async createCubemapTexture(imgSrcs: string[], maxMipLevel = 0) {
+  protected async createCubemapTexture(imgSrcs: string[], maxMipLevel = 0) {
     const imgs = await Promise.all(imgSrcs.map(loadImageBitmap));
     const texture = this._device.createTexture({
       label: "yellow F on red",
@@ -170,7 +170,7 @@ export default abstract class RendererBackend {
     return texture;
   }
 
-  public async createTexture(imgSrc: string, maxMipLevel = 0) {
+  protected async createTexture(imgSrc: string, maxMipLevel = 0) {
     const img = await loadImageBitmap(imgSrc);
     const mips = await generateMips(img, maxMipLevel);
 
@@ -197,7 +197,7 @@ export default abstract class RendererBackend {
     return texture;
   }
 
-  public getVerticesData(vertices: Vertex[]) {
+  protected getVerticesData(vertices: Vertex[]) {
     const verticesData: number[] = [];
     for (let i = 0; i < vertices.length; i++) {
       const { position, texCoord } = vertices[i];
@@ -206,8 +206,6 @@ export default abstract class RendererBackend {
 
     return verticesData;
   }
-
-  //
 
   protected async getRenderPassDesc() {
     const canvasTexture = this._canvasContext.getCurrentTexture();
@@ -260,5 +258,23 @@ export default abstract class RendererBackend {
       this._frameCount = 0;
       this._previousFrameTime = time;
     }
+  }
+
+  protected initializeVecNArray(n: number) {
+    return new Float32Array(this.WIDTH * this.HEIGHT * n);
+  }
+
+  protected createSurfaceBuffer(label: string, n: number) {
+    const buffer = this._device.createBuffer({
+      label: `${label} storage buffer`,
+      size: this.WIDTH * this.HEIGHT * n * Float32Array.BYTES_PER_ELEMENT,
+      usage:
+        GPUBufferUsage.STORAGE |
+        GPUBufferUsage.COPY_SRC |
+        GPUBufferUsage.COPY_DST,
+    });
+    // initialize
+    this._device.queue.writeBuffer(buffer, 0, this.initializeVecNArray(n));
+    return buffer;
   }
 }
