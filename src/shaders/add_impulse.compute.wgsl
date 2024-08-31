@@ -5,7 +5,7 @@
 @group(0) @binding(3) var<storage, read_write> density: array<vec4f>;
 
 const SRC_RADIUS:f32 = 50;
-const DISSIPATION_FACTOR:f32 = 0.05;
+const DISSIPATION_FACTOR:f32 = 0.005;
 
 fn smootherstep(x: f32, edge0: f32, edge1: f32) -> f32 {
     let scaled_x = (x - edge0) / (edge1 - edge0);

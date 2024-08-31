@@ -13,7 +13,7 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
 
     let pos = vec2f(id.xy);
     // let vel = velocity[idx];
-    let vel = vec2f(-1, 0);
+    let vel = vec2f(-0.1, 0);
     let dt = constant.dt;
     let pos_back = pos - vel * dt;
 
