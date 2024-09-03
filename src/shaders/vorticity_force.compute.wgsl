@@ -23,6 +23,5 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
     let psi = vec3f(normalize(eta).xy, 0.0);
     let omega = vec3f(0, 0, vorticity[idx]);
 
-    // velocity[idx] += 0.2 * cross(psi, omega).xy * dx;
-    let vel = velocity[idx];
+    velocity[idx] += 0.2 * cross(psi, omega).xy * dx;
 }

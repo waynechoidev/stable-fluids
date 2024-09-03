@@ -355,7 +355,7 @@ export default class Renderer extends RendererBackend {
       entries: [
         { binding: 0, resource: { buffer: this._windowSizeUniformBuffer } },
         { binding: 1, resource: { buffer: this._vorticityBuffer } },
-        { binding: 2, resource: { buffer: this._tempVelocityBuffer } },
+        { binding: 2, resource: { buffer: this._velocityBuffer } },
       ],
     });
 
