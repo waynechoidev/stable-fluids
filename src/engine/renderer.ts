@@ -320,8 +320,8 @@ export default class Renderer extends RendererBackend {
         { binding: 0, resource: { buffer: this._windowSizeUniformBuffer } },
         { binding: 1, resource: { buffer: this._constantBuffer } },
         { binding: 2, resource: { buffer: this._velocityBuffer } },
-        { binding: 3, resource: { buffer: this._tempVelocityBuffer } },
-        { binding: 4, resource: { buffer: this._densityBuffer } },
+        { binding: 3, resource: { buffer: this._densityBuffer } },
+        { binding: 4, resource: { buffer: this._tempVelocityBuffer } },
         { binding: 5, resource: { buffer: this._tempDensityBuffer } },
       ],
     });
@@ -333,8 +333,8 @@ export default class Renderer extends RendererBackend {
         { binding: 0, resource: { buffer: this._windowSizeUniformBuffer } },
         { binding: 1, resource: { buffer: this._constantBuffer } },
         { binding: 2, resource: { buffer: this._tempVelocityBuffer } },
-        { binding: 3, resource: { buffer: this._velocityBuffer } },
-        { binding: 4, resource: { buffer: this._tempDensityBuffer } },
+        { binding: 3, resource: { buffer: this._tempDensityBuffer } },
+        { binding: 4, resource: { buffer: this._velocityBuffer } },
         { binding: 5, resource: { buffer: this._densityBuffer } },
       ],
     });
@@ -496,7 +496,7 @@ export default class Renderer extends RendererBackend {
     );
 
     computePassEncoder.setPipeline(this._computeDiffusionPipeline);
-    for (let i = 1; i <= 11; i++) {
+    for (let i = 1; i <= 10; i++) {
       if (i % 2 > 0) {
         computePassEncoder.setBindGroup(0, this._computeDiffusionBindGroupOdd);
       } else {
