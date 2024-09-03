@@ -22,11 +22,15 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
     
     // Dissipation
     density[idx] = max(density[idx] - vec4f(DISSIPATION_FACTOR), vec4f(0.0));
+    let max_speed = 1.0;
+    let max_density = 1.0;
     
     if (constant.isTracking == 1.0 ) {
         let dist = length(vec2f(f32(x), f32(y)) - constant.pos) / SRC_RADIUS;
         let scale = smootherstep(1.0 - dist, 0.0, 1.0);
-        velocity[idx] += constant.velocity * scale;
-        density[idx] += constant.density * scale;
+        // velocity[idx] += constant.velocity * scale;
+        // density[idx] += constant.density * scale;
+        velocity[idx] = clamp(velocity[idx] + constant.velocity * scale, vec2f(-max_speed), vec2f(max_speed));
+        density[idx] = clamp(density[idx] + constant.density * scale, vec4f(0.0), vec4f(max_density));
     }
 }

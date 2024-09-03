@@ -11,9 +11,8 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
 
     let N:Neighbors = getNeighbors(x, y, size);
 
-    let gradient:vec2f = vec2f(0.25 * 
-    (pressure[getIdx(N.right, size.width)] - pressure[getIdx(N.left, size.width)] +
-    pressure[getIdx(N.up, size.width)] - pressure[getIdx(N.down, size.width)]));
+    let gradient:vec2f = vec2f((pressure[getIdx(N.right, size.width)] - pressure[getIdx(N.left, size.width)])
+    ,  (pressure[getIdx(N.up, size.width)] - pressure[getIdx(N.down, size.width)])) * 0.5;
 
     velocity[idx] -= gradient;
 }

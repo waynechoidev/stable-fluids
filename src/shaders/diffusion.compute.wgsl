@@ -14,15 +14,18 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
 
     let N:Neighbors = getNeighbors(x, y, size);
 
+    // let dt = constant.dt;
+    // velocity[idx] = temp_velocity[idx];
     velocity[idx] = (temp_velocity[idx]
     + constant.viscosity * constant.dt * (
     temp_velocity[getIdx(N.right, size.width)] + temp_velocity[getIdx(N.left, size.width)]
     + temp_velocity[getIdx(N.up, size.width)] + temp_velocity[getIdx(N.down, size.width)]
     )) / (1.0 + 4 * constant.viscosity * constant.dt);
     
-    density[idx] = (temp_density[idx]
-    + constant.viscosity * constant.dt * (
-    temp_density[getIdx(N.right, size.width)] + temp_density[getIdx(N.left, size.width)]
-    + temp_density[getIdx(N.up, size.width)] + temp_density[getIdx(N.down, size.width)]
-    )) / (1.0 + 4 * constant.viscosity * constant.dt);
+    density[idx] = temp_density[idx];
+    // density[idx] = (temp_density[idx]
+    // + constant.viscosity * constant.dt * (
+    // temp_density[getIdx(N.right, size.width)] + temp_density[getIdx(N.left, size.width)]
+    // + temp_density[getIdx(N.up, size.width)] + temp_density[getIdx(N.down, size.width)]
+    // )) / (1.0 + 4 * constant.viscosity * constant.dt);
 }

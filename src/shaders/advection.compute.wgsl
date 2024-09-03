@@ -17,15 +17,16 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
 
     let pos = vec2f(id.xy);
     let vel = velocity[idx];
-    let dt = constant.dt;
+    // let vel = vec2f(0.1, 0.2);
+    let dt = constant.dt * 0.1;
     var pos_back = pos - vel * dt;
     pos_back = vec2f(
         wrap(pos_back.x, f32(size.width)),
         wrap(pos_back.y, f32(size.height))
     );
 
-    let vel2 = velocity[idx];
-    let vel3 = temp_velocity[idx];
+    // let vel2 = velocity[idx];
+    // let vel3 = temp_velocity[idx];
     velocity[idx] = temp_velocity[getIdx(vec2u(pos_back), size.width)];
     density[idx] = temp_density[getIdx(vec2u(pos_back), size.width)];
 }

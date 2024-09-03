@@ -468,7 +468,7 @@ export default class Renderer extends RendererBackend {
     );
 
     computePassEncoder.setPipeline(this._computePressureDisturbancePipeline);
-    for (let i = 1; i <= 2; i++) {
+    for (let i = 1; i <= 10; i++) {
       if (i % 2 > 0) {
         computePassEncoder.setBindGroup(
           0,
@@ -496,7 +496,7 @@ export default class Renderer extends RendererBackend {
     );
 
     computePassEncoder.setPipeline(this._computeDiffusionPipeline);
-    for (let i = 1; i <= 3; i++) {
+    for (let i = 1; i <= 11; i++) {
       if (i % 2 > 0) {
         computePassEncoder.setBindGroup(0, this._computeDiffusionBindGroupOdd);
       } else {

@@ -51,6 +51,6 @@ fn getNeighbors(x:u32, y:u32, size:WindowSizeUniforms) -> Neighbors {
   if (y == 0) {
       down.y = size.height - 1;
   }
-  
+
   return Neighbors(left, right, up, down);
 }
