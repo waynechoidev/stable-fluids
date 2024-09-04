@@ -43,7 +43,10 @@ export default class Renderer extends RendererBackend {
 
   private _constantBuffer!: GPUBuffer;
 
-  private _densityMapTexture!: GPUTexture;
+  private _velocityTexture!: GPUTexture;
+  private _tempVelocityTexture!: GPUTexture;
+  private _densityTexture!: GPUTexture;
+  private _tempDensityTexture!: GPUTexture;
   private _sampler!: GPUSampler;
 
   private _mainBindGroup!: GPUBindGroup;
@@ -64,6 +67,8 @@ export default class Renderer extends RendererBackend {
   private _mouseVel: vec2;
   private _density: vec4;
   private _colorIdx: number;
+
+  private readonly JACOBI_FACTOR: number = 20;
 
   constructor() {
     super();
@@ -228,8 +233,8 @@ export default class Renderer extends RendererBackend {
   }
 
   private async createTextures() {
-    this._densityMapTexture = this._device.createTexture({
-      label: "height map texture",
+    this._densityTexture = this._device.createTexture({
+      label: "density texture",
       size: [this.WIDTH, this.HEIGHT],
       format: "rgba8unorm",
       usage:
@@ -238,6 +243,35 @@ export default class Renderer extends RendererBackend {
         GPUTextureUsage.STORAGE_BINDING,
     });
 
+    this._tempDensityTexture = this._device.createTexture({
+      label: "temp density texture",
+      size: [this.WIDTH, this.HEIGHT],
+      format: "rgba8unorm",
+      usage:
+        GPUTextureUsage.COPY_DST |
+        GPUTextureUsage.TEXTURE_BINDING |
+        GPUTextureUsage.STORAGE_BINDING,
+    });
+
+    this._velocityTexture = this._device.createTexture({
+      label: "velocity texture",
+      size: [this.WIDTH, this.HEIGHT],
+      format: "rgba8unorm",
+      usage:
+        GPUTextureUsage.COPY_DST |
+        GPUTextureUsage.TEXTURE_BINDING |
+        GPUTextureUsage.STORAGE_BINDING,
+    });
+
+    this._tempVelocityTexture = this._device.createTexture({
+      label: "temp velocity texture",
+      size: [this.WIDTH, this.HEIGHT],
+      format: "rgba8unorm",
+      usage:
+        GPUTextureUsage.COPY_DST |
+        GPUTextureUsage.TEXTURE_BINDING |
+        GPUTextureUsage.STORAGE_BINDING,
+    });
     this._sampler = this._device.createSampler({
       magFilter: "linear",
       minFilter: "linear",
@@ -250,7 +284,7 @@ export default class Renderer extends RendererBackend {
       label: "main bind group",
       layout: this._mainPipeline.getBindGroupLayout(0),
       entries: [
-        { binding: 0, resource: this._densityMapTexture.createView() },
+        { binding: 0, resource: this._densityTexture.createView() },
         { binding: 1, resource: this._sampler },
       ],
     });
@@ -359,26 +393,31 @@ export default class Renderer extends RendererBackend {
       ],
     });
 
+    this._computeTextureBindGroup = this._device.createBindGroup({
+      label: "compute texture bind group",
+      layout: this._computeTexturePipeline.getBindGroupLayout(0),
+      entries: [
+        { binding: 0, resource: { buffer: this._windowSizeUniformBuffer } },
+        { binding: 1, resource: { buffer: this._velocityBuffer } },
+        { binding: 2, resource: { buffer: this._densityBuffer } },
+        { binding: 3, resource: this._tempVelocityTexture.createView() },
+        { binding: 4, resource: this._tempDensityTexture.createView() },
+      ],
+    });
+
     this._computeAdvectionBindGroup = this._device.createBindGroup({
       label: "compute advection bind group Even",
       layout: this._computeAdvectionPipeline.getBindGroupLayout(0),
       entries: [
         { binding: 0, resource: { buffer: this._windowSizeUniformBuffer } },
         { binding: 1, resource: { buffer: this._constantBuffer } },
-        { binding: 2, resource: { buffer: this._tempVelocityBuffer } },
-        { binding: 3, resource: { buffer: this._tempDensityBuffer } },
-        { binding: 4, resource: { buffer: this._velocityBuffer } },
-        { binding: 5, resource: { buffer: this._densityBuffer } },
-      ],
-    });
-
-    this._computeTextureBindGroup = this._device.createBindGroup({
-      label: "compute texture bind group",
-      layout: this._computeTexturePipeline.getBindGroupLayout(0),
-      entries: [
-        { binding: 0, resource: { buffer: this._densityBuffer } },
-        { binding: 1, resource: this._densityMapTexture.createView() },
-        { binding: 2, resource: { buffer: this._windowSizeUniformBuffer } },
+        { binding: 2, resource: this._sampler },
+        { binding: 3, resource: this._tempVelocityTexture.createView() },
+        { binding: 4, resource: this._tempDensityTexture.createView() },
+        { binding: 5, resource: this._velocityTexture.createView() },
+        { binding: 6, resource: this._densityTexture.createView() },
+        { binding: 7, resource: { buffer: this._velocityBuffer } },
+        { binding: 8, resource: { buffer: this._densityBuffer } },
       ],
     });
   }
@@ -468,7 +507,7 @@ export default class Renderer extends RendererBackend {
     );
 
     computePassEncoder.setPipeline(this._computePressureDisturbancePipeline);
-    for (let i = 1; i <= 10; i++) {
+    for (let i = 1; i <= this.JACOBI_FACTOR; i++) {
       if (i % 2 > 0) {
         computePassEncoder.setBindGroup(
           0,
@@ -496,7 +535,7 @@ export default class Renderer extends RendererBackend {
     );
 
     computePassEncoder.setPipeline(this._computeDiffusionPipeline);
-    for (let i = 1; i <= 10; i++) {
+    for (let i = 1; i <= this.JACOBI_FACTOR; i++) {
       if (i % 2 > 0) {
         computePassEncoder.setBindGroup(0, this._computeDiffusionBindGroupOdd);
       } else {
@@ -525,16 +564,16 @@ export default class Renderer extends RendererBackend {
       1
     );
 
-    computePassEncoder.setPipeline(this._computeAdvectionPipeline);
-    computePassEncoder.setBindGroup(0, this._computeAdvectionBindGroup);
+    computePassEncoder.setPipeline(this._computeTexturePipeline);
+    computePassEncoder.setBindGroup(0, this._computeTextureBindGroup);
     computePassEncoder.dispatchWorkgroups(
       this.WIDTH / this.WORKGROUP_SIZE,
       this.HEIGHT / this.WORKGROUP_SIZE,
       1
     );
 
-    computePassEncoder.setPipeline(this._computeTexturePipeline);
-    computePassEncoder.setBindGroup(0, this._computeTextureBindGroup);
+    computePassEncoder.setPipeline(this._computeAdvectionPipeline);
+    computePassEncoder.setBindGroup(0, this._computeAdvectionBindGroup);
     computePassEncoder.dispatchWorkgroups(
       this.WIDTH / this.WORKGROUP_SIZE,
       this.HEIGHT / this.WORKGROUP_SIZE,

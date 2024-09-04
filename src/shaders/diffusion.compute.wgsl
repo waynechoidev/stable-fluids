@@ -14,18 +14,15 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
 
     let N:Neighbors = getNeighbors(x, y, size);
 
-    // let dt = constant.dt;
-    // velocity_output[idx] = velocity_input[idx];
     velocity_output[idx] = (velocity_input[idx]
     + constant.viscosity * constant.dt * (
     velocity_input[getIdx(N.right, size.width)] + velocity_input[getIdx(N.left, size.width)]
     + velocity_input[getIdx(N.up, size.width)] + velocity_input[getIdx(N.down, size.width)]
     )) / (1.0 + 4 * constant.viscosity * constant.dt);
     
-    density_output[idx] = density_input[idx];
-    // density_output[idx] = (density_input[idx]
-    // + constant.viscosity * constant.dt * (
-    // density_input[getIdx(N.right, size.width)] + density_input[getIdx(N.left, size.width)]
-    // + density_input[getIdx(N.up, size.width)] + density_input[getIdx(N.down, size.width)]
-    // )) / (1.0 + 4 * constant.viscosity * constant.dt);
+    density_output[idx] = (density_input[idx]
+    + constant.viscosity * constant.dt * (
+    density_input[getIdx(N.right, size.width)] + density_input[getIdx(N.left, size.width)]
+    + density_input[getIdx(N.up, size.width)] + density_input[getIdx(N.down, size.width)]
+    )) / (1.0 + 4 * constant.viscosity * constant.dt);
 }

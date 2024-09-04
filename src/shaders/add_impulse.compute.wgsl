@@ -5,7 +5,7 @@
 @group(0) @binding(3) var<storage, read_write> density: array<vec4f>;
 
 const SRC_RADIUS:f32 = 50;
-const DISSIPATION_FACTOR:f32 = 0.005;
+const DISSIPATION_FACTOR:f32 = 0.002;
 
 fn smootherstep(x: f32, edge0: f32, edge1: f32) -> f32 {
     let scaled_x = (x - edge0) / (edge1 - edge0);
@@ -28,9 +28,9 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
     if (constant.isTracking == 1.0 ) {
         let dist = length(vec2f(f32(x), f32(y)) - constant.pos) / SRC_RADIUS;
         let scale = smootherstep(1.0 - dist, 0.0, 1.0);
-        // velocity[idx] += constant.velocity * scale;
-        // density[idx] += constant.density * scale;
-        velocity[idx] = clamp(velocity[idx] + constant.velocity * scale, vec2f(-max_speed), vec2f(max_speed));
-        density[idx] = clamp(density[idx] + constant.density * scale, vec4f(0.0), vec4f(max_density));
+        velocity[idx] += constant.velocity * scale;
+        density[idx] += constant.density * scale;
+        // velocity[idx] = clamp(velocity[idx] + constant.velocity * scale, vec2f(-max_speed), vec2f(max_speed));
+        // density[idx] = clamp(density[idx] + constant.density * scale, vec4f(0.0), vec4f(max_density));
     }
 }
