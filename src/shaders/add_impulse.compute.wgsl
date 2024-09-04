@@ -22,10 +22,8 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
     
     // Dissipation
     density_buffer[idx] = max(density_buffer[idx] - vec4f(DISSIPATION_FACTOR), vec4f(0.0));
-    let max_speed = 1.0;
-    let max_density = 1.0;
     
-    if (constant.isTracking == 1.0 ) {
+    if (constant.is_tracking == 1.0 ) {
         let dist = length(vec2f(f32(x), f32(y)) - constant.pos) / SRC_RADIUS;
         let scale = smootherstep(1.0 - dist, 0.0, 1.0);
 

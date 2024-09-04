@@ -20,12 +20,13 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
     + velocity_input[getIdx(N.up, size.width)] + velocity_input[getIdx(N.down, size.width)]
     )) / (1.0 + 4 * constant.viscosity * constant.dt);
     
+    velocity_output[idx] = clampVelocity(velocity);
+    
     let density = (density_input[idx]
     + constant.viscosity * constant.dt * (
     density_input[getIdx(N.right, size.width)] + density_input[getIdx(N.left, size.width)]
     + density_input[getIdx(N.up, size.width)] + density_input[getIdx(N.down, size.width)]
     )) / (1.0 + 4 * constant.viscosity * constant.dt);
     
-    velocity_output[idx] = clampVelocity(velocity);
     density_output[idx] = density;
 }

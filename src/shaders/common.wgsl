@@ -5,7 +5,7 @@ struct VSOutput {
 
 struct Vertex {
   @location(0) position: vec3f,
-  @location(1) texCoord: vec2f,
+  @location(1) tex_coord: vec2f,
 };
 
 struct ConstantUniforms {
@@ -14,7 +14,7 @@ struct ConstantUniforms {
   density:vec4f,
   dt:f32,
   viscosity:f32,
-  isTracking:f32,
+  is_tracking:f32,
 }
 
 struct WindowSizeUniforms {
