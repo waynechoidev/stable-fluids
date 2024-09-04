@@ -16,5 +16,7 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
     (pressure[getIdx(N.up, size.width)] - pressure[getIdx(N.down, size.width)])
     ) * 0.25;
 
-    velocity_buffer[idx] -= gradient;
+    let velocity = velocity_buffer[idx] - gradient;
+    
+    velocity_buffer[idx] = clampVelocity(velocity);
 }

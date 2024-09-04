@@ -19,6 +19,4 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
     
     pressure[idx] = 0;
     temp_pressure[idx] = 0;
-    // let a = pressure[idx];
-    // let b = temp_pressure[idx];
 }

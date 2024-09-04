@@ -14,6 +14,6 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
     let velocity:vec2f = velocity_buffer[idx];
     let density:vec4f = density_buffer[idx];
 
-    textureStore(temp_velocity_buffer, vec2<i32>(i32(x), i32(y)), vec4f(velocity, 0, 0));
+    textureStore(temp_velocity_buffer, vec2<i32>(i32(x), i32(y)), encodeVelocity(velocity));
     textureStore(temp_density_buffer, vec2<i32>(i32(x), i32(y)), density);
 }

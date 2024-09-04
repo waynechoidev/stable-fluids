@@ -21,20 +21,18 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
     let idx = getIdx(id.xy, size.width);
     let pos = vec2<f32>((x + 0.5)/f32(size.width), (y + 0.5)/f32(size.height));
 
-// float2 dx = float2(1.0 / width, 1.0 / height);
-// float2 pos = (dtID.xy + 0.5) * dx;
     let velocity = velocity_buffer[idx];
-    // let velocity = vec2f(0, 0);
 
     let dt = constant.dt * 0.0001;
-    var pos_back = pos - velocity * dt;
+    let pos_back = pos - velocity * dt;
 
-    let back_velocity:vec4f = textureSampleLevel(temp_velocity_texture, my_sampler, pos_back, 0);
+    var back_velocity:vec2f = decodeVelocity(textureSampleLevel(temp_velocity_texture, my_sampler, pos_back, 0));
+    back_velocity = clampVelocity(back_velocity);
     let back_density:vec4f = textureSampleLevel(temp_density_texture, my_sampler, pos_back, 0);
 
-    textureStore(velocity_texture, vec2<i32>(i32(x), i32(y)), back_velocity);
+    textureStore(velocity_texture, vec2<i32>(i32(x), i32(y)), encodeVelocity(back_velocity));
     textureStore(density_texture, vec2<i32>(i32(x), i32(y)), back_density);
 
-    velocity_buffer[idx] = back_velocity.xy;
+    velocity_buffer[idx] = clampVelocity(back_velocity);
     density_buffer[idx] = back_density;
 }

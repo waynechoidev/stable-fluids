@@ -1,8 +1,8 @@
 #include "common.wgsl"
 @group(0) @binding(0) var<uniform> size: WindowSizeUniforms;
 @group(0) @binding(1) var<uniform> constant: ConstantUniforms;
-@group(0) @binding(2) var<storage, read_write> velocity: array<vec2f>;
-@group(0) @binding(3) var<storage, read_write> density: array<vec4f>;
+@group(0) @binding(2) var<storage, read_write> velocity_buffer: array<vec2f>;
+@group(0) @binding(3) var<storage, read_write> density_buffer: array<vec4f>;
 
 const SRC_RADIUS:f32 = 50;
 const DISSIPATION_FACTOR:f32 = 0.002;
@@ -16,21 +16,23 @@ fn smootherstep(x: f32, edge0: f32, edge1: f32) -> f32 {
 
 @compute @workgroup_size(16, 16, 1)
 fn main(@builtin(global_invocation_id) id: vec3u) {
-    let x = id.x;
-    let y = id.y;
+    let x:f32 = f32(id.x) + 0.5;
+    let y:f32 = f32(id.y) + 0.5;
     let idx = getIdx(id.xy, size.width);
     
     // Dissipation
-    density[idx] = max(density[idx] - vec4f(DISSIPATION_FACTOR), vec4f(0.0));
+    density_buffer[idx] = max(density_buffer[idx] - vec4f(DISSIPATION_FACTOR), vec4f(0.0));
     let max_speed = 1.0;
     let max_density = 1.0;
     
     if (constant.isTracking == 1.0 ) {
         let dist = length(vec2f(f32(x), f32(y)) - constant.pos) / SRC_RADIUS;
         let scale = smootherstep(1.0 - dist, 0.0, 1.0);
-        velocity[idx] += constant.velocity * scale;
-        density[idx] += constant.density * scale;
-        // velocity[idx] = clamp(velocity[idx] + constant.velocity * scale, vec2f(-max_speed), vec2f(max_speed));
-        // density[idx] = clamp(density[idx] + constant.density * scale, vec4f(0.0), vec4f(max_density));
+
+        let velocity = velocity_buffer[idx] + constant.velocity * scale;
+        let density = density_buffer[idx] + constant.density * scale;
+
+        velocity_buffer[idx] = clampVelocity(velocity);
+        density_buffer[idx] = density;
     }
 }

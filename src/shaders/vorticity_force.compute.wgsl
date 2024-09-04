@@ -23,6 +23,7 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
     let psi = vec3f(normalize(eta).xy, 0.0);
     let omega = vec3f(0, 0, vorticity_buffer[idx]);
 
-    // velocity_buffer[idx] += 0.2 * cross(psi, omega).xy * dx;
-    let a = velocity_buffer[idx];
+    let velocity = velocity_buffer[idx] + 0.2 * cross(psi, omega).xy * dx;
+    
+    velocity_buffer[idx] = clampVelocity(velocity);
 }

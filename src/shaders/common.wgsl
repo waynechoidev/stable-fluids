@@ -54,3 +54,18 @@ fn getNeighbors(x:u32, y:u32, size:WindowSizeUniforms) -> Neighbors {
 
   return Neighbors(left, right, up, down);
 }
+
+// clamp velocity between -1 and 1
+fn clampVelocity(v: vec2f) -> vec2f {
+    return clamp(v, vec2f(-1.0), vec2f(1.0));
+}
+
+// encode velocity with -1..1 range to texture with 0..1 range
+fn encodeVelocity(v: vec2f) -> vec4f {
+    return vec4f(v * 0.5 + 0.5, 0, 0);
+}
+
+// decode texture with 0..1 range to velocity with -1..1 range
+fn decodeVelocity(v: vec4f) -> vec2f {
+    return v.xy * 2.0 - 1.0;
+}
