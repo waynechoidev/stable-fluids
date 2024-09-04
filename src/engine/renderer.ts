@@ -411,6 +411,10 @@ export default class Renderer extends RendererBackend {
   }
 
   private addEvent() {
+    window.addEventListener("resize", function () {
+      location.reload();
+    });
+
     const startTracking = () => {
       this._isTracking = true;
       this._mouseVel = vec2.fromValues(0, 0);
