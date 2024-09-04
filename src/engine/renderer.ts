@@ -421,6 +421,7 @@ export default class Renderer extends RendererBackend {
       if (this._colorIdx == colors.length) this._colorIdx = 0;
       const color = colors[this._colorIdx++];
       this._density = vec4.fromValues(color[0], color[1], color[2], color[3]);
+      this._drag.hidden = true;
     };
 
     const updatePosition = (clientX: number, clientY: number) => {

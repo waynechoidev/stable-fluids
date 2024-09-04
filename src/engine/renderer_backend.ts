@@ -11,6 +11,8 @@ export default abstract class RendererBackend {
   protected readonly WORKGROUP_SIZE = 16;
 
   protected _fps: HTMLElement;
+  protected _drag: HTMLElement;
+  protected _warning: HTMLElement;
   protected _previousFrameTime: number;
   protected _previousFpsUpdateTime: number;
   protected _delta: number;
@@ -28,6 +30,8 @@ export default abstract class RendererBackend {
     this._delta = 0;
     this._frameCount = 0;
     this._fps = document.getElementById("fps") as HTMLElement;
+    this._drag = document.getElementById("drag") as HTMLElement;
+    this._warning = document.getElementById("warning") as HTMLElement;
   }
 
   abstract initialize(): Promise<void>;
@@ -259,6 +263,10 @@ export default abstract class RendererBackend {
 
     if (time - this._previousFpsUpdateTime >= 1000) {
       this._fps.innerHTML = `FPS: ${this._frameCount}`;
+
+      if (this._frameCount < 30) this._warning.hidden = false;
+      else this._warning.hidden = true;
+
       this._frameCount = 0;
       this._previousFpsUpdateTime = time;
     }

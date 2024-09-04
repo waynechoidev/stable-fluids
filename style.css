@@ -28,3 +28,21 @@ canvas {
   left: 1rem;
   user-select: none;
 }
+
+#drag {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  user-select: none;
+  font-size: 5rem;
+}
+
+#warning {
+  position: absolute;
+  top: 70%;
+  left: 50%;
+  transform: translate(-50%, 0);
+  user-select: none;
+  font-size: 1.2rem;
+}
