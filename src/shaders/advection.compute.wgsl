@@ -10,10 +10,6 @@
 @group(0) @binding(7) var<storage, read_write> velocity_buffer: array<vec2f>;
 @group(0) @binding(8) var<storage, read_write> density_buffer: array<vec4f>;
 
-fn wrap(value: f32, max: f32) -> f32 {
-    return value - max * floor(value / max);
-}
-
 @compute @workgroup_size(16, 16, 1)
 fn main(@builtin(global_invocation_id) id: vec3u) {
     let x = f32(id.x);
