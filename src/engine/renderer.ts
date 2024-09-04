@@ -44,9 +44,8 @@ export default class Renderer extends RendererBackend {
   private _constantBuffer!: GPUBuffer;
 
   private _velocityTexture!: GPUTexture;
-  private _tempVelocityTexture!: GPUTexture;
   private _densityTexture!: GPUTexture;
-  private _tempDensityTexture!: GPUTexture;
+  private _renderTarget!: GPUTexture;
   private _sampler!: GPUSampler;
 
   private _mainBindGroup!: GPUBindGroup;
@@ -233,6 +232,16 @@ export default class Renderer extends RendererBackend {
   }
 
   private async createTextures() {
+    this._renderTarget = this._device.createTexture({
+      label: "render target texture",
+      size: [this.WIDTH, this.HEIGHT],
+      format: "rgba8unorm",
+      usage:
+        GPUTextureUsage.COPY_DST |
+        GPUTextureUsage.TEXTURE_BINDING |
+        GPUTextureUsage.STORAGE_BINDING,
+    });
+
     this._densityTexture = this._device.createTexture({
       label: "density texture",
       size: [this.WIDTH, this.HEIGHT],
@@ -243,28 +252,8 @@ export default class Renderer extends RendererBackend {
         GPUTextureUsage.STORAGE_BINDING,
     });
 
-    this._tempDensityTexture = this._device.createTexture({
-      label: "temp density texture",
-      size: [this.WIDTH, this.HEIGHT],
-      format: "rgba8unorm",
-      usage:
-        GPUTextureUsage.COPY_DST |
-        GPUTextureUsage.TEXTURE_BINDING |
-        GPUTextureUsage.STORAGE_BINDING,
-    });
-
     this._velocityTexture = this._device.createTexture({
       label: "velocity texture",
-      size: [this.WIDTH, this.HEIGHT],
-      format: "rgba8unorm",
-      usage:
-        GPUTextureUsage.COPY_DST |
-        GPUTextureUsage.TEXTURE_BINDING |
-        GPUTextureUsage.STORAGE_BINDING,
-    });
-
-    this._tempVelocityTexture = this._device.createTexture({
-      label: "temp velocity texture",
       size: [this.WIDTH, this.HEIGHT],
       format: "rgba8unorm",
       usage:
@@ -284,7 +273,7 @@ export default class Renderer extends RendererBackend {
       label: "main bind group",
       layout: this._mainPipeline.getBindGroupLayout(0),
       entries: [
-        { binding: 0, resource: this._densityTexture.createView() },
+        { binding: 0, resource: this._renderTarget.createView() },
         { binding: 1, resource: this._sampler },
       ],
     });
@@ -400,8 +389,8 @@ export default class Renderer extends RendererBackend {
         { binding: 0, resource: { buffer: this._windowSizeUniformBuffer } },
         { binding: 1, resource: { buffer: this._velocityBuffer } },
         { binding: 2, resource: { buffer: this._densityBuffer } },
-        { binding: 3, resource: this._tempVelocityTexture.createView() },
-        { binding: 4, resource: this._tempDensityTexture.createView() },
+        { binding: 3, resource: this._velocityTexture.createView() },
+        { binding: 4, resource: this._densityTexture.createView() },
       ],
     });
 
@@ -412,12 +401,11 @@ export default class Renderer extends RendererBackend {
         { binding: 0, resource: { buffer: this._windowSizeUniformBuffer } },
         { binding: 1, resource: { buffer: this._constantBuffer } },
         { binding: 2, resource: this._sampler },
-        { binding: 3, resource: this._tempVelocityTexture.createView() },
-        { binding: 4, resource: this._tempDensityTexture.createView() },
-        { binding: 5, resource: this._velocityTexture.createView() },
-        { binding: 6, resource: this._densityTexture.createView() },
-        { binding: 7, resource: { buffer: this._velocityBuffer } },
-        { binding: 8, resource: { buffer: this._densityBuffer } },
+        { binding: 3, resource: this._velocityTexture.createView() },
+        { binding: 4, resource: this._densityTexture.createView() },
+        { binding: 5, resource: this._renderTarget.createView() },
+        { binding: 6, resource: { buffer: this._velocityBuffer } },
+        { binding: 7, resource: { buffer: this._densityBuffer } },
       ],
     });
   }
