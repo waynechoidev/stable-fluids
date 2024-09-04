@@ -423,36 +423,48 @@ export default class Renderer extends RendererBackend {
   }
 
   private addEvent() {
-    this._canvas.addEventListener("mousedown", () => {
+    const startTracking = () => {
       this._isTracking = true;
       this._mouseVel = vec2.fromValues(0, 0);
       if (this._colorIdx == colors.length) this._colorIdx = 0;
       const color = colors[this._colorIdx++];
       this._density = vec4.fromValues(color[0], color[1], color[2], color[3]);
-    });
+    };
 
-    this._canvas.addEventListener("mousemove", (e) => {
+    const updatePosition = (clientX: number, clientY: number) => {
       const rect = this._canvas.getBoundingClientRect();
-      const mousePos = vec2.fromValues(
-        e.clientX - rect.left,
-        rect.bottom - e.clientY
-      );
+      const pos = vec2.fromValues(clientX - rect.left, rect.bottom - clientY);
 
       if (this._isTracking) {
-        this._mouseVel = vec2.subtract(
-          this._mouseVel,
-          mousePos,
-          this._prevMousePos
-        );
+        this._mouseVel = vec2.subtract(this._mouseVel, pos, this._prevMousePos);
       }
 
-      this._prevMousePos = vec2.clone(mousePos);
-    });
+      this._prevMousePos = vec2.clone(pos);
+    };
 
-    this._canvas.addEventListener("mouseup", () => {
+    const stopTracking = () => {
       this._isTracking = false;
       this._mouseVel = vec2.fromValues(0, 0);
+    };
+
+    // Mouse event
+    this._canvas.addEventListener("mousedown", startTracking);
+    this._canvas.addEventListener("mousemove", (e) => {
+      updatePosition(e.clientX, e.clientY);
     });
+    this._canvas.addEventListener("mouseup", stopTracking);
+
+    // Touch event
+    this._canvas.addEventListener("touchstart", (e) => {
+      startTracking();
+      const touch = e.touches[0];
+      updatePosition(touch.clientX, touch.clientY);
+    });
+    this._canvas.addEventListener("touchmove", (e) => {
+      const touch = e.touches[0];
+      updatePosition(touch.clientX, touch.clientY);
+    });
+    this._canvas.addEventListener("touchend", stopTracking);
   }
 
   private async updateBuffer() {
